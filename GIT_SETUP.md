@@ -1,6 +1,32 @@
 # Как выгрузить проект на Git
 
-Проект уже сохранён в отдельной папке:
+## Статус
+
+Репозиторий уже инициализирован и выгружен:
+
+```text
+https://github.com/zamaledinovr-max/stor
+```
+
+- рабочая копия: `C:\projects\telegram-device-market`;
+- ветка: `main`;
+- remote: `origin`;
+- первый коммит: `289814c` — `Initial commit: Telegram Mini App + aiogram marketplace MVP`.
+
+Дальнейшие изменения:
+
+```powershell
+cd C:\projects\telegram-device-market
+git add --all
+git commit -m "Describe the change"
+git push
+```
+
+Ниже — инструкция на случай повторной инициализации/переезда проекта.
+
+## Исходное расположение
+
+Проект сохранён в отдельной папке:
 
 ```text
 C:\Users\282_АУЕ_228\.cline\data\workspaces\chat\telegram-device-market

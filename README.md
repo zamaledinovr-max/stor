@@ -483,8 +483,19 @@ POST /api/listings
 
 ## 14. Git
 
-Проект уже находится в отдельной папке и готов к инициализации репозитория.
-Подробная инструкция — в [GIT_SETUP.md](GIT_SETUP.md).
+Репозиторий проекта: **https://github.com/zamaledinovr-max/stor**  
+Рабочая копия: `C:\projects\telegram-device-market` (ветка `main`, remote `origin`).
+
+Проект уже инициализирован и выгружен. Для дальнейших изменений:
+
+```powershell
+cd C:\projects\telegram-device-market
+git add --all
+git commit -m "Describe the change"
+git push
+```
+
+Подробная инструкция (включая повторную инициализацию) — в [GIT_SETUP.md](GIT_SETUP.md).
 
 Быстрый путь (Windows PowerShell, из корня проекта):
 
