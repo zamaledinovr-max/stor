@@ -24,6 +24,25 @@ git push
 
 Ниже — инструкция на случай повторной инициализации/переезда проекта.
 
+## Git на этой машине
+
+Системный Git не установлен, поэтому используется портативный MinGit:
+
+```text
+C:\projects\tools\mingit\cmd\git.exe
+```
+
+Удобные обёртки:
+
+```powershell
+C:\projects\git.cmd --version
+C:\projects\git.cmd status
+C:\projects\push.cmd "Describe the change"
+```
+
+`push.cmd` делает `git add --all`, коммит с указанным сообщением и `git push`.
+Логин GitHub уже сохранён в Git Credential Manager (аккаунт `zamaledinovr-max`).
+
 ## Исходное расположение
 
 Проект сохранён в отдельной папке:
