@@ -105,9 +105,11 @@ telegram-device-market/
 │       └── views/ catalog.js  create.js  account.js  detail.js
 ├── migrations/                 # Alembic env + 0001_initial
 ├── scripts/dev_init_data.py    # подписанный initData для локальной отладки
+├── scripts/start_all.sh        # миграции + API + бот в одном контейнере
 ├── scripts/init_git.ps1        # инициализация Git и push одной командой
 ├── scripts/init_git.cmd        # то же самое двойным щелчком в Windows
 ├── scripts/init_git.sh
+├── amvera.yml                  # конфигурация деплоя на Amvera
 ├── alembic.ini
 ├── docker-compose.yml
 ├── Dockerfile
@@ -115,6 +117,7 @@ telegram-device-market/
 ├── .gitignore
 ├── .gitattributes
 ├── .dockerignore
+├── DEPLOY_AMVERA.md            # пошаговый деплой на Amvera
 ├── GIT_SETUP.md                # как выгрузить проект на GitHub/GitLab
 ├── pyproject.toml
 └── README.md
@@ -222,8 +225,12 @@ API-документация (Swagger): `http://localhost:8000/api/docs` (отк
 | `PHOTO_ALLOWED_MIME_TYPES` | нет | список разрешённых типов (JPEG/PNG/WEBP) |
 | `PHOTO_URL_TTL_SECONDS` | нет | срок жизни подписанной ссылки на фото |
 | `RATE_LIMIT_*` | нет | лимиты запросов (0 отключает конкретный лимит) |
+| `RUN_API` | нет | `1` — запускать FastAPI; `0` — только бот (для раздельного деплоя) |
+| `RUN_BOT` | нет | `1` — запускать aiogram; `0` — только API |
+| `RUN_MIGRATIONS` | нет | `1` — применять Alembic при старте; `0` — пропустить (для bot-контейнера) |
+| `APP_PORT` | нет | порт uvicorn, должен совпадать с `run.containerPort` в `amvera.yml` |
 | `CORS_ALLOWED_ORIGINS` | нет | список origin через запятую; пусто — CORS не включается |
-| `ALLOWED_HOSTS` | нет | список Host через запятую; в production `*` запрещён |
+| `ALLOWED_HOSTS` | нет | список Host через запятую; в production нельзя `*`, но можно `*.amvera.io` |
 | `TRUST_PROXY_HEADERS` | нет | доверять `X-Forwarded-For` (только за своим reverse proxy) |
 | `APP_DOCS_ENABLED` | нет | Swagger/OpenAPI под `/api/docs` |
 | `APP_AUTO_CREATE_TABLES` | нет | только dev; в production запрещено, используйте Alembic |
@@ -512,3 +519,27 @@ Linux/macOS/Git Bash:
 Скрипт инициализирует `main`, создаёт первый коммит, добавляет `origin` и делает
 `push`. Реальный `.env` в коммит не попадает: `.gitignore` его исключает, а скрипт
 дополнительно проверяет индекс и останавливается, если там оказался секрет.
+
+---
+
+## 15. Деплой на Amvera Cloud
+
+Подробная пошаговая инструкция для новичка — в [DEPLOY_AMVERA.md](DEPLOY_AMVERA.md).
+
+Коротко:
+
+1. Создайте в Amvera веб-проект с Docker и HTTPS-доменом.
+2. Создайте Managed PostgreSQL в том же регионе.
+3. Добавьте переменные окружения (`APP_SECRET_KEY`, `DATABASE_URL`,
+   `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBAPP_URL`, `TELEGRAM_ADMIN_IDS`,
+   `LOCAL_STORAGE_DIR=/data/media` и остальные из инструкции).
+4. Добавьте Amvera Git remote и сделайте push:
+   ```powershell
+   C:\projects\git.cmd remote add amvera https://git.amvera.ru/<login>/<project>
+   C:\projects\git.cmd push amvera main:master
+   ```
+5. Дождитесь успешной сборки и проверьте `https://<домен>/api/health`.
+
+`amvera.yml` уже задаёт порт `8000` и постоянный диск `/data`.
+`scripts/start_all.sh` применяет миграции и запускает API и бота в одном
+контейнере. Для раздельного запуска есть `RUN_API` и `RUN_BOT`.
