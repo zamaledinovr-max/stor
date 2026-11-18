@@ -1,0 +1,17 @@
+# Git and line endings
+* text=auto eol=lf
+
+# Windows scripts keep CRLF so they run in Windows PowerShell/cmd
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary assets must never be normalized
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary

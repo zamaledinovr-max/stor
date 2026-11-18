@@ -1,0 +1,40 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+
+# Local file storage for uploaded photos (never commit user content)
+var/
+media/
+
+# Local databases / logs / keys
+*.db
+*.sqlite
+*.sqlite3
+*.log
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Node tooling (frontend is dependency-free, but keep the folder clean)
+node_modules/

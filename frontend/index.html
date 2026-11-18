@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f4f6fa">
+  <title>Барахолка устройств</title>
+  <link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="topbar">
+      <div class="brand">
+        <img class="brand__logo" src="/assets/logo.svg" alt="" width="38" height="38">
+        <div class="brand__text">
+          <h1 id="app-name">Барахолка устройств</h1>
+          <p class="brand__sub">Техника рядом</p>
+        </div>
+      </div>
+      <button class="icon-btn" id="support-button" type="button" aria-label="Поддержка">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+          <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                d="M12 17.2h.01M9.6 9.3a2.5 2.5 0 1 1 3.6 2.3c-.8.5-1.2 1-1.2 2"/>
+          <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/>
+        </svg>
+      </button>
+    </header>
+
+    <main class="main">
+      <section class="view" id="view-catalog" data-view="catalog">
+        <div class="search">
+          <svg class="search__icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+            <path d="m16 16 4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+          <input id="search-input" class="search__input" type="search" inputmode="search"
+                 placeholder="Поиск по названию" autocomplete="off" maxlength="100"
+                 aria-label="Поиск по названию">
+          <button id="clear-search" class="search__clear" type="button" aria-label="Очистить поиск" hidden>×</button>
+        </div>
+
+        <div class="chips chips--scroll" id="kind-chips" role="group" aria-label="Тип объявления"></div>
+
+        <div class="catalog-toolbar">
+          <div class="catalog-toolbar__title">
+            <h2>Каталог</h2>
+            <span id="catalog-count" class="muted"></span>
+          </div>
+          <div class="catalog-toolbar__actions">
+            <button id="sort-button" class="chip chip--ghost" type="button">Сначала новые</button>
+            <button id="filters-button" class="chip chip--ghost" type="button">
+              Фильтры <span id="filters-badge" class="badge" hidden></span>
+            </button>
+          </div>
+        </div>
+
+        <div id="ad-slot" class="ad" hidden></div>
+
+        <div id="catalog-state" class="state" hidden></div>
+        <div id="catalog-grid" class="grid" aria-live="polite"></div>
+        <div class="load-more">
+          <button id="load-more-button" class="button button--ghost" type="button" hidden>Показать ещё</button>
+        </div>
+        <div id="catalog-sentinel" class="sentinel" aria-hidden="true"></div>
+      </section>
+
+      <section class="view" id="view-sell" data-view="sell" hidden>
+        <div class="stepbar" id="wizard-steps" aria-hidden="true"></div>
+        <form class="form" id="create-form" novalidate>
+          <div class="wizard-step" data-step="1">
+            <h2 class="view__title">Что размещаем?</h2>
+            <div class="segmented" id="kind-segmented" role="group" aria-label="Тип объявления"></div>
+            <label class="field">
+              <span class="field__label" id="title-label">Название устройства <span class="req">*</span></span>
+              <input class="input" id="field-title" type="text" maxlength="120" autocomplete="off"
+                     placeholder="Например, iPhone 12 128 ГБ">
+              <span class="field__error" id="error-title" hidden></span>
+            </label>
+            <label class="field">
+              <span class="field__label" id="description-label">Описание</span>
+              <textarea class="input input--area" id="field-description" maxlength="1000" rows="4"
+                        placeholder="Комплект, особенности, причина продажи…"></textarea>
+              <span class="field__hint" id="description-hint"></span>
+              <span class="field__error" id="error-description" hidden></span>
+            </label>
+          </div>
+
+          <div class="wizard-step" data-step="2" hidden>
+            <h2 class="view__title">Детали</h2>
+            <div class="field">
+              <span class="field__label" id="condition-label">Состояние <span class="req" id="condition-req">*</span></span>
+              <div class="chips chips--wrap" id="condition-chips" role="group" aria-label="Состояние"></div>
+              <span class="field__error" id="error-condition" hidden></span>
+            </div>
+            <label class="field">
+              <span class="field__label" id="price-label">Цена, ₽ <span class="req">*</span></span>
+              <input class="input" id="field-price" type="text" inputmode="decimal" maxlength="14"
+                     placeholder="Например, 25000">
+              <span class="field__error" id="error-price" hidden></span>
+            </label>
+            <label class="checkbox" id="no-budget-row" hidden>
+              <input type="checkbox" id="field-no-budget">
+              <span>Бюджет не указан</span>
+            </label>
+            <label class="field">
+              <span class="field__label">Район <span class="req">*</span></span>
+              <select class="input input--select" id="field-district" aria-label="Район">
+                <option value="">Выберите район</option>
+              </select>
+              <span class="field__error" id="error-district" hidden></span>
+            </label>
+          </div>
+
+          <div class="wizard-step" data-step="3" hidden>
+            <h2 class="view__title">Фотографии</h2>
+            <p class="muted" id="photo-limits"></p>
+            <label class="photo-picker" id="photo-picker">
+              <input type="file" id="photo-input" class="visually-hidden" accept="image/jpeg,image/png,image/webp" multiple>
+              <span class="photo-picker__plus" aria-hidden="true">+</span>
+              <span>Добавить фотографии</span>
+            </label>
+            <div class="photo-grid" id="photo-previews"></div>
+            <p class="field__error" id="error-photos" hidden></p>
+            <p class="field__hint">Фото необязательны. Можно удалить любое до публикации.</p>
+            <div class="summary" id="create-summary"></div>
+            <div class="rules" id="rules-block" hidden>
+              <p class="rules__title">Правила публикации</p>
+              <p class="rules__text" id="rules-text"></p>
+              <label class="checkbox">
+                <input type="checkbox" id="field-rules">
+                <span>Подтверждаю, что объявление не нарушает правила</span>
+              </label>
+              <p class="field__error" id="error-rules" hidden></p>
+            </div>
+          </div>
+
+          <div class="wizard-actions">
+            <button class="button button--ghost" id="wizard-back" type="button" hidden>Назад</button>
+            <button class="button button--primary" id="wizard-next" type="button">Далее</button>
+            <button class="button button--primary" id="wizard-submit" type="button" hidden>Опубликовать</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="view" id="view-account" data-view="account" hidden>
+        <div class="account" id="account-card"></div>
+        <div class="account-actions">
+          <button class="button button--ghost" id="support-button-2" type="button">Написать в поддержку</button>
+        </div>
+        <div id="account-groups" class="account-groups"></div>
+      </section>
+    </main>
+
+    <nav class="tabbar" aria-label="Основная навигация">
+      <button class="tabbar__item" data-tab="sell" type="button">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <span>Продать</span>
+      </button>
+      <button class="tabbar__item is-active" data-tab="catalog" type="button">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <path d="M4 7h16l-1.2 12.2a2 2 0 0 1-2 1.8H7.2a2 2 0 0 1-2-1.8L4 7Z" fill="none"
+                stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+          <path d="M9 9V6a3 3 0 0 1 6 0v3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        <span>Купить</span>
+      </button>
+      <button class="tabbar__item" data-tab="account" type="button">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <circle cx="12" cy="8.5" r="3.6" fill="none" stroke="currentColor" stroke-width="1.8"/>
+          <path d="M5 20c.8-3.4 3.5-5.2 7-5.2s6.2 1.8 7 5.2" fill="none" stroke="currentColor"
+                stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        <span>Аккаунт</span>
+      </button>
+    </nav>
+  </div>
+
+  <div class="sheet" id="detail-sheet" hidden>
+    <div class="sheet__dialog" role="dialog" aria-modal="true" aria-label="Объявление">
+      <button class="sheet__close" id="detail-close" type="button" aria-label="Закрыть">×</button>
+      <div class="sheet__body" id="detail-body"></div>
+    </div>
+  </div>
+
+  <div class="sheet" id="filters-sheet" hidden>
+    <div class="sheet__dialog" role="dialog" aria-modal="true" aria-label="Фильтры">
+      <div class="sheet__header">
+        <h2>Фильтры</h2>
+        <button class="sheet__close" id="filters-close" type="button" aria-label="Закрыть">×</button>
+      </div>
+      <div class="sheet__body" id="filters-body"></div>
+      <div class="sheet__footer">
+        <button class="button button--ghost" id="filters-reset" type="button">Сбросить</button>
+        <button class="button button--primary" id="filters-apply" type="button">Применить</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>
