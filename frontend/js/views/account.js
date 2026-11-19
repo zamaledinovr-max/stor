@@ -9,7 +9,7 @@ const GROUPS = [
   { key: "closed", title: "Закрытые" },
 ];
 
-export function createAccountView({ api, getMe, openListing, openCreate, notify }) {
+export function createAccountView({ api, getMe, openListing, openCreate, openEdit, notify }) {
   const profileNode = document.getElementById("account-card");
   const groupsNode = document.getElementById("account-groups");
   let data = null;
@@ -83,6 +83,12 @@ export function createAccountView({ api, getMe, openListing, openCreate, notify 
           type: "button",
           text: "Открыть",
           onclick: () => openListing(item.id),
+        }),
+        el("button", {
+          class: "chip",
+          type: "button",
+          text: "Редактировать",
+          onclick: () => openEdit(item.id),
         }),
         statusButton(item),
       ]),

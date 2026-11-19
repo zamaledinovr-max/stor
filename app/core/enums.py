@@ -33,6 +33,27 @@ class ListingCondition(str, Enum):
     FOR_PARTS = "for_parts"
 
 
+class ComplaintReason(str, Enum):
+    """Fixed reasons available in the complaint form."""
+
+    SPAM = "spam"
+    FRAUD = "fraud"
+    PROHIBITED = "prohibited"
+    WRONG_INFO = "wrong_info"
+    ABUSE = "abuse"
+    OTHER = "other"
+
+
+COMPLAINT_REASON_LABELS: dict[str, str] = {
+    ComplaintReason.SPAM.value: "Спам",
+    ComplaintReason.FRAUD.value: "Мошенничество",
+    ComplaintReason.PROHIBITED.value: "Запрещённый товар",
+    ComplaintReason.WRONG_INFO.value: "Неверная информация",
+    ComplaintReason.ABUSE.value: "Оскорбления",
+    ComplaintReason.OTHER.value: "Другое",
+}
+
+
 KIND_LABELS: dict[str, str] = {
     ListingKind.SELL.value: "Продам",
     ListingKind.BUY.value: "Куплю",

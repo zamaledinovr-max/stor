@@ -4,7 +4,7 @@ import { clear, el, show } from "../dom.js";
 import { formatDateTime, formatListingPrice, timeAgo } from "../format.js";
 import { openLink } from "../telegram.js";
 
-export function createDetailView({ api, openSupport, notify, onChanged }) {
+export function createDetailView({ api, getMeta, openSupport, notify, onChanged, onEdit }) {
   const sheet = document.getElementById("detail-sheet");
   const body = document.getElementById("detail-body");
   const closeButton = document.getElementById("detail-close");
@@ -36,6 +36,97 @@ export function createDetailView({ api, openSupport, notify, onChanged }) {
       gallery.appendChild(el("div", { class: "detail__photo" }, [image]));
     }
     return gallery;
+  }
+
+  function renderComplaintWidget(listing) {
+    const reasons = getMeta()?.complaint_reasons || [];
+    if (!reasons.length) return null;
+
+    const trigger = el("button", {
+      class: "button button--ghost",
+      type: "button",
+      text: "Пожаловаться",
+    });
+    const form = el("div", { class: "complaint__form", hidden: true });
+    const reasonSelect = el(
+      "select",
+      { class: "input input--select", attrs: { "aria-label": "Причина жалобы" } },
+      reasons.map((option) => el("option", { value: option.value, text: option.label })),
+    );
+    const comment = el("textarea", {
+      class: "input input--area",
+      rows: 3,
+      maxlength: 500,
+      placeholder: "Опишите, что не так с объявлением",
+      attrs: { "aria-label": "Комментарий к жалобе" },
+    });
+    const error = el("p", { class: "field__error", hidden: true });
+    const submit = el("button", {
+      class: "button button--primary",
+      type: "button",
+      text: "Отправить жалобу",
+    });
+    const cancel = el("button", {
+      class: "button button--ghost",
+      type: "button",
+      text: "Отмена",
+    });
+
+    function closeForm() {
+      form.hidden = true;
+      show(trigger, true);
+      error.hidden = true;
+    }
+
+    trigger.addEventListener("click", () => {
+      show(trigger, false);
+      form.hidden = false;
+      reasonSelect.focus();
+    });
+    cancel.addEventListener("click", closeForm);
+    submit.addEventListener("click", async () => {
+      const text = comment.value.trim();
+      error.hidden = true;
+      if (!reasonSelect.value) {
+        error.textContent = "Выберите причину жалобы.";
+        error.hidden = false;
+        return;
+      }
+      if (text.length < 3) {
+        error.textContent = "Опишите проблему — минимум 3 символа.";
+        error.hidden = false;
+        return;
+      }
+      submit.disabled = true;
+      try {
+        await api.createComplaint(listing.id, {
+          reason: reasonSelect.value,
+          comment: text,
+        });
+        closeForm();
+        comment.value = "";
+        notify("Жалоба отправлена. Спасибо!");
+      } catch (requestError) {
+        error.textContent =
+          requestError.message || "Не удалось отправить жалобу. Попробуйте позже.";
+        error.hidden = false;
+      } finally {
+        submit.disabled = false;
+      }
+    });
+
+    form.appendChild(el("label", { class: "field" }, [
+      el("span", { class: "field__label", text: "Причина" }),
+      reasonSelect,
+    ]));
+    form.appendChild(el("label", { class: "field" }, [
+      el("span", { class: "field__label", text: "Комментарий" }),
+      comment,
+    ]));
+    form.appendChild(error);
+    form.appendChild(el("div", { class: "complaint__actions" }, [submit, cancel]));
+
+    return el("div", { class: "complaint" }, [trigger, form]);
   }
 
   async function changeStatus(status, button) {
@@ -78,6 +169,17 @@ export function createDetailView({ api, openSupport, notify, onChanged }) {
       if (row.childElementCount) actions.appendChild(row);
     }
 
+    if (listing.is_owner) {
+      actions.appendChild(
+        el("button", {
+          class: "button button--ghost",
+          type: "button",
+          text: "Редактировать объявление",
+          onclick: () => onEdit?.(listing.id),
+        }),
+      );
+    }
+
     if (!listing.is_owner) {
       if (listing.owner_username) {
         actions.appendChild(
@@ -104,6 +206,11 @@ export function createDetailView({ api, openSupport, notify, onChanged }) {
           }),
         );
       }
+    }
+
+    if (!listing.is_owner) {
+      const complaintWidget = renderComplaintWidget(listing);
+      if (complaintWidget) actions.appendChild(complaintWidget);
     }
 
     actions.appendChild(

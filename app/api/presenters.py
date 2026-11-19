@@ -16,8 +16,9 @@ from app.core.enums import (
 )
 from app.core.signing import build_photo_url
 from app.core.timeutils import as_utc
-from app.models import Listing, ListingPhoto, User
+from app.models import Listing, ListingComplaint, ListingPhoto, User
 from app.schemas.common import MeOut, OptionOut, PhotoOut, PriceOut, UserOut
+from app.schemas.complaint import ComplaintOut
 from app.schemas.listing import (
     ListingDetailOut,
     ListingSummaryOut,
@@ -57,6 +58,10 @@ def photo_out(photo: ListingPhoto, settings: Settings) -> PhotoOut:
     )
 
 
+def complaint_out(complaint: ListingComplaint) -> ComplaintOut:
+    return ComplaintOut.model_validate(complaint)
+
+
 def listing_summary(listing: Listing, settings: Settings, viewer_id: int) -> ListingSummaryOut:
     photos = list(listing.photos)
     condition = ListingCondition(listing.condition) if listing.condition else None
@@ -66,8 +71,11 @@ def listing_summary(listing: Listing, settings: Settings, viewer_id: int) -> Lis
         kind_label=KIND_LABELS[listing.kind],
         title=listing.title,
         price=price_out(listing),
+        price_negotiable=listing.price_negotiable,
         condition=condition,
-        condition_label=CONDITION_LABELS.get(listing.condition) if listing.condition else None,
+        condition_text=listing.condition_text,
+        condition_label=listing.condition_text
+        or (CONDITION_LABELS.get(listing.condition) if listing.condition else None),
         district=listing.district,
         status=listing.status,
         status_label=STATUS_LABELS[listing.status],

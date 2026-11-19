@@ -6,21 +6,40 @@ import { formatListingPrice, parsePriceInput } from "../format.js";
 const TOTAL_STEPS = 3;
 
 function emptyValues() {
-  return { title: "", description: "", condition: "", price: "", district: "" };
+  return {
+    title: "",
+    description: "",
+    condition: "",
+    conditionText: "",
+    price: "",
+    district: "",
+  };
 }
 
-export function createCreateView({ api, getMeta, openListing, goCatalog, notify }) {
+export function createCreateView({
+  api,
+  getMeta,
+  openListing,
+  goCatalog,
+  goAccount,
+  onCancel,
+  notify,
+}) {
   const form = document.getElementById("create-form");
   const steps = [...form.querySelectorAll(".wizard-step")];
   const stepbar = document.getElementById("wizard-steps");
   const segmented = document.getElementById("kind-segmented");
   const conditionChips = document.getElementById("condition-chips");
+  const conditionTextField = document.getElementById("condition-text-field");
+  const conditionTextInput = document.getElementById("field-condition-text");
   const districtSelect = document.getElementById("field-district");
   const titleInput = document.getElementById("field-title");
   const descriptionInput = document.getElementById("field-description");
   const priceInput = document.getElementById("field-price");
   const noBudgetInput = document.getElementById("field-no-budget");
   const noBudgetRow = document.getElementById("no-budget-row");
+  const negotiableInput = document.getElementById("field-price-negotiable");
+  const negotiableRow = document.getElementById("price-negotiable-row");
   const photoInput = document.getElementById("photo-input");
   const previews = document.getElementById("photo-previews");
   const summary = document.getElementById("create-summary");
@@ -28,6 +47,8 @@ export function createCreateView({ api, getMeta, openListing, goCatalog, notify 
   const backButton = document.getElementById("wizard-back");
   const nextButton = document.getElementById("wizard-next");
   const submitButton = document.getElementById("wizard-submit");
+  const cancelButton = document.getElementById("wizard-cancel");
+  const wizardTitle = document.getElementById("wizard-title");
   const titleLabel = document.getElementById("title-label");
   const priceLabel = document.getElementById("price-label");
   const conditionReq = document.getElementById("condition-req");
@@ -41,7 +62,12 @@ export function createCreateView({ api, getMeta, openListing, goCatalog, notify 
     kind: "sell",
     values: emptyValues(),
     noBudget: false,
+    priceNegotiable: false,
+    conditionMode: "standard",
     files: [],
+    existingPhotos: [],
+    removedPhotoIds: [],
+    editId: null,
     submitting: false,
   };
 
@@ -92,17 +118,31 @@ export function createCreateView({ api, getMeta, openListing, goCatalog, notify 
 
   function validateStep2() {
     const errors = [];
-    if (state.kind === "sell" && !state.values.condition) {
+    const customCondition = state.conditionMode === "custom";
+    const conditionText = state.values.conditionText.trim();
+
+    if (customCondition) {
+      if (!conditionText) {
+        setError("condition", "Введите своё состояние.");
+        errors.push("condition");
+      } else if (conditionText.length > 40) {
+        setError("condition", "Состояние должно быть короче 40 символов.");
+        errors.push("condition");
+      }
+    } else if (state.kind === "sell" && !state.values.condition) {
       setError("condition", "Выберите состояние устройства.");
       errors.push("condition");
     }
+
     if (state.kind === "sell") {
-      if (!state.values.price.trim()) {
-        setError("price", "Укажите цену.");
-        errors.push("price");
-      } else if (!parsePriceInput(state.values.price)) {
-        setError("price", "Цена должна быть положительным числом.");
-        errors.push("price");
+      if (!state.priceNegotiable) {
+        if (!state.values.price.trim()) {
+          setError("price", "Укажите цену или выберите «Договорная».");
+          errors.push("price");
+        } else if (!parsePriceInput(state.values.price)) {
+          setError("price", "Цена должна быть положительным числом.");
+          errors.push("price");
+        }
       }
     } else if (!state.noBudget && !state.values.price.trim()) {
       setError("price", "Укажите бюджет или отметьте «Бюджет не указан».");
@@ -123,7 +163,7 @@ export function createCreateView({ api, getMeta, openListing, goCatalog, notify 
   function validateStep3() {
     const { max_count: maxCount, max_size_mb: maxSize, allowed_mime_types: allowed } = limits();
     const errors = [];
-    if (state.files.length > maxCount) {
+    if (state.files.length + state.existingPhotos.length > maxCount) {
       setError("photos", `Можно добавить не больше ${maxCount} фотографий.`);
       errors.push("photos");
     }
@@ -139,7 +179,7 @@ export function createCreateView({ api, getMeta, openListing, goCatalog, notify 
         break;
       }
     }
-    if (meta().rules && !rulesCheckbox.checked) {
+    if (meta().rules && !state.editId && !rulesCheckbox.checked) {
       setError("rules", "Подтвердите, что объявление соответствует правилам.");
       errors.push("rules");
     }
@@ -169,6 +209,11 @@ export function createCreateView({ api, getMeta, openListing, goCatalog, notify 
           state.kind = option.value;
           if (state.kind === "buy") {
             state.values.condition = "";
+            state.values.conditionText = "";
+            state.conditionMode = "standard";
+            conditionTextInput.value = "";
+            state.priceNegotiable = false;
+            negotiableInput.checked = false;
           } else {
             state.noBudget = false;
             noBudgetInput.checked = false;
@@ -180,6 +225,10 @@ export function createCreateView({ api, getMeta, openListing, goCatalog, notify 
         },
       });
       setPressed(button, state.kind === option.value);
+      if (state.editId) {
+        button.disabled = true;
+        button.title = "Тип объявления нельзя изменить";
+      }
       segmented.appendChild(button);
     }
   }
@@ -196,29 +245,54 @@ export function createCreateView({ api, getMeta, openListing, goCatalog, notify 
       ? "Комплект, состояние, причина продажи."
       : "Опишите, что ищете: модель, требования, сроки.";
     priceLabel.textContent = isSell ? "Цена, ₽" : "Максимальный бюджет, ₽";
-    if (isSell) priceLabel.appendChild(el("span", { class: "req", text: "*" }));
+    if (isSell && !state.priceNegotiable) {
+      priceLabel.appendChild(el("span", { class: "req", text: "*" }));
+    }
     show(noBudgetRow, !isSell);
+    show(negotiableRow, isSell);
+    show(conditionTextField, state.conditionMode === "custom");
     conditionReq.hidden = !isSell;
-    priceInput.disabled = !isSell && state.noBudget;
-    if (state.noBudget) priceInput.value = "";
+    priceInput.disabled = (isSell && state.priceNegotiable) || (!isSell && state.noBudget);
+    if (state.noBudget || (isSell && state.priceNegotiable)) priceInput.value = "";
   }
 
   function renderConditionChips() {
     clear(conditionChips);
     for (const option of meta().conditions) {
+      const active =
+        state.conditionMode === "standard" && state.values.condition === option.value;
       const button = el("button", {
         class: "chip",
         type: "button",
         text: option.label,
         onclick: () => {
+          state.conditionMode = "standard";
           state.values.condition =
             state.values.condition === option.value ? "" : option.value;
+          state.values.conditionText = "";
+          conditionTextInput.value = "";
           renderConditionChips();
+          syncKindLabels();
         },
       });
-      setPressed(button, state.values.condition === option.value);
+      setPressed(button, active);
       conditionChips.appendChild(button);
     }
+
+    const customButton = el("button", {
+      class: "chip",
+      type: "button",
+      text: "Своё состояние",
+      onclick: () => {
+        state.conditionMode = "custom";
+        state.values.condition = "";
+        renderConditionChips();
+        syncKindLabels();
+        conditionTextInput.focus();
+      },
+    });
+    setPressed(customButton, state.conditionMode === "custom");
+    conditionChips.appendChild(customButton);
   }
 
   function renderDistricts() {
@@ -231,6 +305,11 @@ export function createCreateView({ api, getMeta, openListing, goCatalog, notify 
   }
 
   function renderRules() {
+    if (state.editId) {
+      show(rulesBlock, false);
+      rulesCheckbox.checked = false;
+      return;
+    }
     const rules = meta().rules;
     if (!rules) {
       show(rulesBlock, false);
@@ -243,6 +322,17 @@ export function createCreateView({ api, getMeta, openListing, goCatalog, notify 
 
   function renderPhotos() {
     clear(previews);
+    for (const photo of state.existingPhotos) {
+      const image = el("img", { src: photo.url, alt: "Фото объявления" });
+      const remove = el("button", {
+        class: "photo-thumb__remove",
+        type: "button",
+        text: "×",
+        attrs: { "aria-label": "Удалить фотографию" },
+        onclick: () => removeExistingPhoto(photo.id),
+      });
+      previews.appendChild(el("div", { class: "photo-thumb" }, [image, remove]));
+    }
     for (const [index, item] of state.files.entries()) {
       const image = el("img", { src: item.url, alt: `Фото ${index + 1}` });
       const remove = el("button", {
@@ -254,6 +344,15 @@ export function createCreateView({ api, getMeta, openListing, goCatalog, notify 
       });
       previews.appendChild(el("div", { class: "photo-thumb" }, [image, remove]));
     }
+  }
+
+  function removeExistingPhoto(photoId) {
+    state.existingPhotos = state.existingPhotos.filter((item) => item.id !== photoId);
+    if (!state.removedPhotoIds.includes(photoId)) {
+      state.removedPhotoIds.push(photoId);
+    }
+    renderPhotos();
+    updatePhotoSummary();
   }
 
   function removeFile(index) {
@@ -268,7 +367,7 @@ export function createCreateView({ api, getMeta, openListing, goCatalog, notify 
     const { max_count: maxCount, max_size_mb: maxSize, allowed_mime_types: allowed } = limits();
     const nextFiles = [...state.files];
     for (const file of fileList) {
-      if (nextFiles.length >= maxCount) {
+      if (nextFiles.length + state.existingPhotos.length >= maxCount) {
         notify(`Можно добавить не больше ${maxCount} фотографий.`, true);
         break;
       }
@@ -294,27 +393,28 @@ export function createCreateView({ api, getMeta, openListing, goCatalog, notify 
 
   function renderSummary() {
     clear(summary);
+    const conditionLabel =
+      state.conditionMode === "custom"
+        ? state.values.conditionText.trim() || "Не указано"
+        : meta().conditions.find((item) => item.value === state.values.condition)?.label ||
+          "Не указано";
+    const parsedPrice = parsePriceInput(state.values.price);
+    const priceValue =
+      state.kind === "buy" && state.noBudget
+        ? "Не указан"
+        : formatListingPrice({
+            kind: state.kind,
+            price_negotiable: state.kind === "sell" && state.priceNegotiable,
+            price: parsedPrice ? { amount: parsedPrice, currency: "RUB" } : null,
+          });
+
     const rows = [
       ["Тип", meta().kinds.find((item) => item.value === state.kind)?.label || ""],
       ["Название", state.values.title.trim() || "—"],
-      [
-        "Состояние",
-        meta().conditions.find((item) => item.value === state.values.condition)?.label ||
-          "Не указано",
-      ],
-      [
-        state.kind === "buy" ? "Бюджет" : "Цена",
-        state.kind === "buy" && state.noBudget
-          ? "Не указан"
-          : formatListingPrice({
-              kind: state.kind,
-              price: parsePriceInput(state.values.price)
-                ? { amount: parsePriceInput(state.values.price), currency: "RUB" }
-                : null,
-            }),
-      ],
+      ["Состояние", conditionLabel],
+      [state.kind === "buy" ? "Бюджет" : "Цена", priceValue],
       ["Район", state.values.district || "—"],
-      ["Фотографии", String(state.files.length)],
+      ["Фотографии", String(state.files.length + state.existingPhotos.length)],
     ];
     for (const [label, value] of rows) {
       summary.appendChild(
@@ -345,6 +445,7 @@ export function createCreateView({ api, getMeta, openListing, goCatalog, notify 
     show(backButton, step > 1);
     show(nextButton, step < TOTAL_STEPS);
     show(submitButton, step === TOTAL_STEPS);
+    show(cancelButton, Boolean(state.editId));
     renderStepbar();
     if (step === TOTAL_STEPS) renderSummary();
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -367,16 +468,30 @@ export function createCreateView({ api, getMeta, openListing, goCatalog, notify 
     return failures;
   }
 
-  function buildPayload() {
-    const price =
-      state.kind === "buy" && state.noBudget ? null : parsePriceInput(state.values.price);
+  function buildFieldsPayload() {
+    const price = state.priceNegotiable
+      ? null
+      : state.kind === "buy" && state.noBudget
+        ? null
+        : parsePriceInput(state.values.price);
     return {
-      kind: state.kind,
       title: state.values.title.trim(),
       description: state.values.description.trim() || null,
-      condition: state.values.condition || null,
+      condition: state.conditionMode === "standard" ? state.values.condition || null : null,
+      condition_text:
+        state.conditionMode === "custom"
+          ? state.values.conditionText.trim() || null
+          : null,
       price_amount: price,
+      price_negotiable: state.kind === "sell" && state.priceNegotiable,
       district: state.values.district,
+    };
+  }
+
+  function buildPayload() {
+    return {
+      kind: state.kind,
+      ...buildFieldsPayload(),
       rules_accepted: rulesCheckbox.checked,
     };
   }
@@ -386,7 +501,9 @@ export function createCreateView({ api, getMeta, openListing, goCatalog, notify 
       title: "title",
       description: "description",
       condition: "condition",
+      condition_text: "condition",
       price_amount: "price",
+      price_negotiable: "price",
       district: "district",
       kind: "title",
       rules_accepted: "rules",
@@ -402,14 +519,17 @@ export function createCreateView({ api, getMeta, openListing, goCatalog, notify 
     if (error.message) notify(error.message, true);
   }
 
-  function renderSuccess(listing, photoFailures) {
+  function renderSuccess(listing, photoFailures, isEdit = false) {
     form.hidden = true;
     if (successNode) successNode.remove();
 
     const container = document.getElementById("view-sell");
     successNode = el("div", { class: "state" }, [
       el("div", { class: "state__icon", text: "✅" }),
-      el("div", { class: "state__title", text: "Объявление опубликовано" }),
+      el("div", {
+        class: "state__title",
+        text: isEdit ? "Объявление обновлено" : "Объявление опубликовано",
+      }),
       el("div", {
         class: "state__text",
         text: `${listing.kind_label}: ${listing.title} · ${formatListingPrice(listing)}`,
@@ -443,25 +563,39 @@ export function createCreateView({ api, getMeta, openListing, goCatalog, notify 
         },
       }),
     );
-    successNode.appendChild(
-      el("button", {
-        class: "button button--ghost",
-        type: "button",
-        text: "В каталог",
-        onclick: () => {
-          reset();
-          goCatalog();
-        },
-      }),
-    );
-    successNode.appendChild(
-      el("button", {
-        class: "button button--ghost",
-        type: "button",
-        text: "Разместить ещё",
-        onclick: () => reset(),
-      }),
-    );
+    if (isEdit) {
+      successNode.appendChild(
+        el("button", {
+          class: "button button--ghost",
+          type: "button",
+          text: "В аккаунт",
+          onclick: () => {
+            reset();
+            goAccount();
+          },
+        }),
+      );
+    } else {
+      successNode.appendChild(
+        el("button", {
+          class: "button button--ghost",
+          type: "button",
+          text: "В каталог",
+          onclick: () => {
+            reset();
+            goCatalog();
+          },
+        }),
+      );
+      successNode.appendChild(
+        el("button", {
+          class: "button button--ghost",
+          type: "button",
+          text: "Разместить ещё",
+          onclick: () => reset(),
+        }),
+      );
+    }
     container.appendChild(successNode);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -479,26 +613,46 @@ export function createCreateView({ api, getMeta, openListing, goCatalog, notify 
       return;
     }
 
+    const isEdit = Boolean(state.editId);
     state.submitting = true;
     submitButton.disabled = true;
     backButton.disabled = true;
-    setSubmitLabel("Публикуем…");
+    cancelButton.disabled = true;
+    setSubmitLabel(isEdit ? "Сохраняем…" : "Публикуем…");
     try {
-      const listing = await api.createListing(buildPayload());
+      let listing;
       let photoFailures = [];
-      if (state.files.length) {
-        photoFailures = await uploadPhotos(listing.id);
+
+      if (isEdit) {
+        listing = await api.updateListing(state.editId, buildFieldsPayload());
+        for (const photoId of state.removedPhotoIds) {
+          try {
+            await api.deletePhoto(state.editId, photoId);
+          } catch (error) {
+            photoFailures.push(error.message || "не удалось удалить фото");
+          }
+        }
+        if (state.files.length) {
+          photoFailures = photoFailures.concat(await uploadPhotos(state.editId));
+        }
+      } else {
+        listing = await api.createListing(buildPayload());
+        if (state.files.length) {
+          photoFailures = await uploadPhotos(listing.id);
+        }
       }
-      setSubmitLabel("Опубликовано");
-      renderSuccess(listing, photoFailures);
-      notify("Объявление опубликовано.");
+
+      setSubmitLabel(isEdit ? "Сохранено" : "Опубликовано");
+      renderSuccess(listing, photoFailures, isEdit);
+      notify(isEdit ? "Объявление обновлено." : "Объявление опубликовано.");
     } catch (error) {
-      setSubmitLabel("Опубликовать");
+      setSubmitLabel(isEdit ? "Сохранить" : "Опубликовать");
       applyServerErrors(error);
     } finally {
       state.submitting = false;
       submitButton.disabled = false;
       backButton.disabled = false;
+      cancelButton.disabled = false;
     }
   }
 
@@ -508,7 +662,12 @@ export function createCreateView({ api, getMeta, openListing, goCatalog, notify 
     state.kind = "sell";
     state.values = emptyValues();
     state.noBudget = false;
+    state.priceNegotiable = false;
+    state.conditionMode = "standard";
     state.files = [];
+    state.existingPhotos = [];
+    state.removedPhotoIds = [];
+    state.editId = null;
     state.submitting = false;
 
     if (successNode) {
@@ -516,11 +675,14 @@ export function createCreateView({ api, getMeta, openListing, goCatalog, notify 
       successNode = null;
     }
     form.hidden = false;
+    wizardTitle.textContent = "Что размещаем?";
     titleInput.value = "";
     descriptionInput.value = "";
     priceInput.value = "";
     priceInput.disabled = false;
     noBudgetInput.checked = false;
+    negotiableInput.checked = false;
+    conditionTextInput.value = "";
     districtSelect.value = "";
     photoInput.value = "";
     rulesCheckbox.checked = false;
@@ -530,6 +692,55 @@ export function createCreateView({ api, getMeta, openListing, goCatalog, notify 
     syncKindLabels();
     renderKind();
     renderConditionChips();
+    renderDistricts();
+    renderRules();
+    renderPhotos();
+    showStep(1);
+  }
+
+  function startEdit(listing) {
+    reset();
+    state.editId = listing.id;
+    state.kind = listing.kind;
+    state.values = {
+      title: listing.title || "",
+      description: listing.description || "",
+      condition: listing.condition || "",
+      conditionText: listing.condition_text || "",
+      price: listing.price?.amount ? String(Number(listing.price.amount)) : "",
+      district: listing.district || "",
+    };
+    state.conditionMode = listing.condition_text
+      ? "custom"
+      : listing.condition
+        ? "standard"
+        : "standard";
+    state.priceNegotiable = Boolean(listing.price_negotiable);
+    state.noBudget = listing.kind === "buy" && !listing.price;
+    state.existingPhotos = (listing.photos || []).map((photo) => ({
+      id: photo.id,
+      url: photo.url,
+    }));
+    state.removedPhotoIds = [];
+    state.files = [];
+
+    titleInput.value = state.values.title;
+    descriptionInput.value = state.values.description;
+    priceInput.value = state.values.price;
+    conditionTextInput.value = state.values.conditionText;
+    negotiableInput.checked = state.priceNegotiable;
+    noBudgetInput.checked = state.noBudget;
+    wizardTitle.textContent = "Редактирование объявления";
+    setSubmitLabel("Сохранить");
+    form.hidden = false;
+    if (successNode) {
+      successNode.remove();
+      successNode = null;
+    }
+
+    renderKind();
+    renderConditionChips();
+    syncKindLabels();
     renderDistricts();
     renderRules();
     renderPhotos();
@@ -569,6 +780,18 @@ export function createCreateView({ api, getMeta, openListing, goCatalog, notify 
       }
       updatePhotoSummary();
     });
+    negotiableInput.addEventListener("change", () => {
+      state.priceNegotiable = negotiableInput.checked;
+      if (state.priceNegotiable) {
+        priceInput.value = "";
+        state.values.price = "";
+      }
+      syncKindLabels();
+      updatePhotoSummary();
+    });
+    conditionTextInput.addEventListener("input", () => {
+      state.values.conditionText = conditionTextInput.value;
+    });
     photoInput.addEventListener("change", (event) => {
       addFiles([...event.target.files]);
     });
@@ -581,7 +804,11 @@ export function createCreateView({ api, getMeta, openListing, goCatalog, notify 
       showStep(Math.max(1, state.step - 1));
     });
     submitButton.addEventListener("click", submit);
+    cancelButton.addEventListener("click", () => {
+      if (onCancel) onCancel();
+      else reset();
+    });
   }
 
-  return { mount, reset };
+  return { mount, reset, startEdit };
 }

@@ -18,13 +18,14 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Settings
-from app.core.enums import KIND_LABELS, CONDITION_LABELS
+from app.core.enums import COMPLAINT_REASON_LABELS, KIND_LABELS, CONDITION_LABELS
 from app.core.timeutils import as_utc, utcnow
 from app.models import (
     OUTBOX_FAILED,
     OUTBOX_PENDING,
     OUTBOX_SENT,
     Listing,
+    ListingComplaint,
     NotificationOutbox,
 )
 
@@ -74,10 +75,15 @@ def build_listing_text(listing: Listing) -> str:
     ]
     if listing.kind == "buy":
         lines.append(f"Бюджет: {escape(format_money(listing.price_amount, listing.currency))}")
+    elif listing.price_negotiable:
+        lines.append("Цена: Договорная")
     else:
         lines.append(f"Цена: {escape(format_money(listing.price_amount, listing.currency))}")
-    if listing.condition:
-        lines.append(f"Состояние: {escape(CONDITION_LABELS.get(listing.condition, listing.condition))}")
+    condition = listing.condition_text or (
+        CONDITION_LABELS.get(listing.condition, listing.condition) if listing.condition else None
+    )
+    if condition:
+        lines.append(f"Состояние: {escape(condition)}")
     lines.append(f"Район: {escape(listing.district)}")
     created_at = as_utc(listing.created_at)
     lines.append(f"Время: {created_at:%d.%m.%Y %H:%M} UTC")
@@ -97,17 +103,17 @@ def build_listing_payload(listing: Listing, settings: Settings) -> dict[str, Any
     }
 
 
-def enqueue_listing_created(
-    session: Session, settings: Settings, listing: Listing
+def _enqueue_for_admins(
+    session: Session,
+    settings: Settings,
+    dedupe_prefix: str,
+    payload: dict[str, Any],
 ) -> list[NotificationOutbox]:
-    """Add one outbox row per configured admin (no commit here)."""
-
-    payload = build_listing_payload(listing, settings)
     rows: list[NotificationOutbox] = []
     for admin_id in dict.fromkeys(settings.admin_ids):
         rows.append(
             NotificationOutbox(
-                dedupe_key=f"listing_created:{listing.id}:{admin_id}",
+                dedupe_key=f"{dedupe_prefix}:{admin_id}",
                 chat_id=admin_id,
                 payload=payload,
                 status=OUTBOX_PENDING,
@@ -118,6 +124,51 @@ def enqueue_listing_created(
     if rows:
         session.add_all(rows)
     return rows
+
+
+def enqueue_listing_created(
+    session: Session, settings: Settings, listing: Listing
+) -> list[NotificationOutbox]:
+    """Add one outbox row per configured admin (no commit here)."""
+
+    return _enqueue_for_admins(
+        session,
+        settings,
+        f"listing_created:{listing.id}",
+        build_listing_payload(listing, settings),
+    )
+
+
+def build_complaint_text(complaint: ListingComplaint, listing: Listing) -> str:
+    reason = COMPLAINT_REASON_LABELS.get(complaint.reason, complaint.reason)
+    text = (
+        f"🚩 Новая жалоба на объявление №{listing.id}\n"
+        f"Причина: {escape(reason)}\n"
+        f"Текст: {escape(complaint.comment)}\n"
+        f"Объявление: {escape(listing.title)}"
+    )
+    return text[:3500]
+
+
+def enqueue_listing_complaint(
+    session: Session,
+    settings: Settings,
+    complaint: ListingComplaint,
+    listing: Listing,
+) -> list[NotificationOutbox]:
+    payload = {
+        "text": build_complaint_text(complaint, listing),
+        "button_text": "Открыть объявление",
+        "button_url": f"{settings.webapp_url}/?listing={listing.id}",
+        "complaint_id": complaint.id,
+        "listing_id": listing.id,
+    }
+    return _enqueue_for_admins(
+        session,
+        settings,
+        f"listing_complaint:{complaint.id}",
+        payload,
+    )
 
 
 def _mark_sent(session_factory: sessionmaker[Session], row_id: int, now: datetime) -> None:

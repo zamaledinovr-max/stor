@@ -71,7 +71,7 @@
         <div class="stepbar" id="wizard-steps" aria-hidden="true"></div>
         <form class="form" id="create-form" novalidate>
           <div class="wizard-step" data-step="1">
-            <h2 class="view__title">Что размещаем?</h2>
+            <h2 class="view__title" id="wizard-title">Что размещаем?</h2>
             <div class="segmented" id="kind-segmented" role="group" aria-label="Тип объявления"></div>
             <label class="field">
               <span class="field__label" id="title-label">Название устройства <span class="req">*</span></span>
@@ -95,11 +95,21 @@
               <div class="chips chips--wrap" id="condition-chips" role="group" aria-label="Состояние"></div>
               <span class="field__error" id="error-condition" hidden></span>
             </div>
+            <label class="field" id="condition-text-field" hidden>
+              <span class="field__label">Своё состояние</span>
+              <input class="input" id="field-condition-text" type="text" maxlength="40"
+                     placeholder="Например, 9 из 10">
+              <span class="field__error" id="error-condition-text" hidden></span>
+            </label>
             <label class="field">
               <span class="field__label" id="price-label">Цена, ₽ <span class="req">*</span></span>
               <input class="input" id="field-price" type="text" inputmode="decimal" maxlength="14"
                      placeholder="Например, 25000">
               <span class="field__error" id="error-price" hidden></span>
+            </label>
+            <label class="checkbox" id="price-negotiable-row" hidden>
+              <input type="checkbox" id="field-price-negotiable">
+              <span>Договорная</span>
             </label>
             <label class="checkbox" id="no-budget-row" hidden>
               <input type="checkbox" id="field-no-budget">
@@ -138,6 +148,7 @@
           </div>
 
           <div class="wizard-actions">
+            <button class="button button--ghost" id="wizard-cancel" type="button" hidden>Отмена</button>
             <button class="button button--ghost" id="wizard-back" type="button" hidden>Назад</button>
             <button class="button button--primary" id="wizard-next" type="button">Далее</button>
             <button class="button button--primary" id="wizard-submit" type="button" hidden>Опубликовать</button>

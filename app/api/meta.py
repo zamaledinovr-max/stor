@@ -5,6 +5,7 @@ from __future__ import annotations
 from app.core.config import Settings
 from app.core.districts import DISTRICTS
 from app.core.enums import (
+    COMPLAINT_REASON_LABELS,
     CONDITION_LABELS,
     KIND_LABELS,
     STATUS_LABELS,
@@ -66,4 +67,8 @@ def build_meta(settings: Settings) -> MetaOut:
         support=build_support(settings),
         ad=build_ad(settings),
         rules=settings.listing_rules,
+        complaint_reasons=[
+            OptionOut(value=value, label=label)
+            for value, label in COMPLAINT_REASON_LABELS.items()
+        ],
     )

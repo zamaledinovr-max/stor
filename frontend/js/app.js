@@ -86,12 +86,31 @@ function goCatalog() {
   if (account) account.refresh();
 }
 
+function goAccount() {
+  switchTab("account");
+  if (account) account.refresh();
+}
+
+async function openEdit(listingId) {
+  if (!createView) return;
+  try {
+    const listing = await api.getListing(listingId);
+    if (detail) detail.close();
+    switchTab("sell");
+    createView.startEdit(listing);
+  } catch (error) {
+    notify(error.message || "Не удалось открыть форму редактирования.", true);
+  }
+}
+
 function buildViews() {
   detail = createDetailView({
     api,
+    getMeta: () => state.meta,
     openSupport,
     notify,
     onChanged: refreshOwnData,
+    onEdit: openEdit,
   });
   catalog = createCatalogView({
     api,
@@ -105,6 +124,7 @@ function buildViews() {
     getMe: () => state.me,
     openListing: (id) => detail.open(id),
     openCreate: () => switchTab("sell"),
+    openEdit,
     notify,
   });
   createView = createCreateView({
@@ -112,6 +132,11 @@ function buildViews() {
     getMeta: () => state.meta,
     openListing: (id) => detail.open(id),
     goCatalog,
+    goAccount,
+    onCancel: () => {
+      createView.reset();
+      goAccount();
+    },
     notify,
   });
 

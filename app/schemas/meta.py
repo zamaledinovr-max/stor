@@ -38,3 +38,4 @@ class MetaOut(BaseModel):
     support: SupportOut | None
     ad: AdOut | None
     rules: str | None
+    complaint_reasons: list[OptionOut]

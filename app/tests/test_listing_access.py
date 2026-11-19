@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from sqlalchemy import select
-
 from app.models import Listing
 from app.tests.images import make_image_bytes
 

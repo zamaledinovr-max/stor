@@ -156,15 +156,16 @@ def test_photo_can_be_deleted(client, auth_headers, session_factory):
     assert served.status_code == 404
 
 
-def test_photo_cannot_be_added_to_finished_listing(client, auth_headers):
+def test_photo_can_be_added_to_finished_listing(client, auth_headers):
     listing_id = _create(client, auth_headers)
     client.patch(
         f"/api/listings/{listing_id}/status",
         json={"status": "sold"},
         headers=auth_headers(1001),
     )
+    # Photos are editable from the account even after the listing is finished.
     response = _upload(client, auth_headers, listing_id, make_image_bytes())
-    assert response.status_code == 409
+    assert response.status_code == 201
 
 
 def test_detail_lists_all_uploaded_photos(client, auth_headers):

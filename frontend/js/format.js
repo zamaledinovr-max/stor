@@ -31,6 +31,9 @@ export function formatBudget(price) {
 }
 
 export function formatListingPrice(listing) {
+  if (listing.kind === "sell" && listing.price_negotiable) {
+    return "Договорная";
+  }
   if (!listing.price) {
     return listing.kind === "buy" ? "Бюджет не указан" : "Цена не указана";
   }

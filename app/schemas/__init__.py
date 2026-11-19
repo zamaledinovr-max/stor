@@ -11,6 +11,7 @@ from app.schemas.common import (
     UserOut,
     ValidationErrorResponse,
 )
+from app.schemas.complaint import ComplaintCreateIn, ComplaintOut
 from app.schemas.listing import (
     CreateListingIn,
     ListingDetailOut,
@@ -18,11 +19,14 @@ from app.schemas.listing import (
     ListingSummaryOut,
     MyListingsOut,
     StatusUpdateIn,
+    UpdateListingIn,
 )
 from app.schemas.meta import AdOut, MetaOut, PhotoLimitsOut, SupportOut
 
 __all__ = [
     "AdOut",
+    "ComplaintCreateIn",
+    "ComplaintOut",
     "CreateListingIn",
     "ErrorDetail",
     "ErrorResponse",
@@ -39,6 +43,7 @@ __all__ = [
     "PriceOut",
     "StatusUpdateIn",
     "SupportOut",
+    "UpdateListingIn",
     "UserOut",
     "ValidationErrorResponse",
 ]

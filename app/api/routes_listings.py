@@ -25,6 +25,7 @@ from app.schemas.listing import (
     ListingDetailOut,
     ListingListOut,
     StatusUpdateIn,
+    UpdateListingIn,
 )
 from app.services import listing_service, photo_service
 from app.storage.base import Storage
@@ -41,6 +42,9 @@ upload_photo_rate_limit = rate_limit(
 )
 status_change_rate_limit = rate_limit(
     "status-change", lambda settings: settings.rate_limit_status_change_per_hour, 3600
+)
+update_listing_rate_limit = rate_limit(
+    "update-listing", lambda settings: settings.rate_limit_update_listing_per_hour, 3600
 )
 
 _LISTING_ERRORS = {
@@ -125,6 +129,25 @@ def read_listing(
 ) -> ListingDetailOut:
     listing = listing_service.get_listing_for_viewer(session, auth.telegram_id, listing_id)
     return listing_detail(listing, settings, auth.telegram_id)
+
+
+@router.put(
+    "/listings/{listing_id}",
+    response_model=ListingDetailOut,
+    summary="Обновить своё объявление",
+    responses={**_LISTING_ERRORS, 403: {"model": ErrorResponse}},
+    dependencies=[Depends(update_listing_rate_limit)],
+)
+def update_listing(
+    payload: UpdateListingIn,
+    auth: AuthContext = Depends(get_auth_context),
+    session: Session = Depends(get_session),
+    settings: Settings = Depends(get_app_settings),
+    listing_id: int = Path(ge=1),
+) -> ListingDetailOut:
+    listing_service.update_listing(session, auth.user, listing_id, payload)
+    stored = listing_service.get_listing(session, listing_id)
+    return listing_detail(stored, settings, auth.telegram_id)
 
 
 @router.patch(

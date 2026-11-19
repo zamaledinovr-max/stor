@@ -630,6 +630,11 @@ img {
   color: var(--accent);
 }
 
+.segmented__item:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
 .stepbar {
   display: flex;
   gap: 6px;
@@ -1097,6 +1102,34 @@ img {
 .account-item__actions .chip {
   padding: 6px 10px;
   font-size: 12px;
+}
+
+/* ------------------------------- complaint ------------------------------- */
+
+.complaint {
+  margin-top: 7px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.complaint__form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.complaint__form .field {
+  margin-bottom: 6px;
+}
+
+.complaint__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.complaint__actions .button {
+  flex: 1;
 }
 
 /* --------------------------------- detail -------------------------------- */

@@ -20,6 +20,7 @@ from fastapi.staticfiles import StaticFiles
 # Register ORM models on Base.metadata for create_all()/migrations.
 import app.models  # noqa: F401
 from app.api.errors import register_exception_handlers
+from app.api.routes_complaints import router as complaints_router
 from app.api.routes_listings import router as listings_router
 from app.api.routes_me import router as me_router
 from app.api.routes_photos import router as photos_router
@@ -175,6 +176,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(system_router)
     app.include_router(me_router)
     app.include_router(listings_router)
+    app.include_router(complaints_router)
     app.include_router(photos_router)
 
     frontend_dir = _frontend_dir(app_settings)

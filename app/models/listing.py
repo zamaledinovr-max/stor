@@ -7,6 +7,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -14,6 +15,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    false,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -60,7 +62,11 @@ class Listing(Base):
     title: Mapped[str] = mapped_column(String(120), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     condition: Mapped[str | None] = mapped_column(String(16))
+    condition_text: Mapped[str | None] = mapped_column(String(40))
     price_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    price_negotiable: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
     currency: Mapped[str] = mapped_column(String(3), default="RUB", nullable=False)
     district: Mapped[str] = mapped_column(String(32), nullable=False)
     status: Mapped[str] = mapped_column(

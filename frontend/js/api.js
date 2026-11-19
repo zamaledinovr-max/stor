@@ -131,6 +131,20 @@ export class ApiClient {
     });
   }
 
+  updateListing(id, payload) {
+    return this.request(`/api/listings/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      body: payload,
+    });
+  }
+
+  createComplaint(listingId, payload) {
+    return this.request(
+      `/api/listings/${encodeURIComponent(listingId)}/complaints`,
+      { method: "POST", body: payload },
+    );
+  }
+
   myListings() {
     return this.request("/api/me/listings");
   }

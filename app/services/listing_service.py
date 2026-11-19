@@ -23,7 +23,7 @@ from app.core.enums import (
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
 from app.core.timeutils import utcnow
 from app.models import Listing, ListingPhoto, User
-from app.schemas.listing import CreateListingIn
+from app.schemas.listing import CreateListingIn, UpdateListingIn
 from app.services import audit_service, notification_service
 
 SORT_NEWEST = "newest"
@@ -47,6 +47,45 @@ class CatalogFilters:
 
 def _escape_like(value: str) -> str:
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def validate_listing_content(
+    kind: str,
+    condition: ListingCondition | None,
+    condition_text: str | None,
+    price_amount: Decimal | None,
+    price_negotiable: bool,
+) -> None:
+    """Validate fields that depend on the listing kind.
+
+    Pydantic checks the same rules for creation; this helper is reused for
+    updates where the kind is taken from the stored listing.
+    """
+
+    if condition is not None and condition_text is not None:
+        raise ValidationAppError(
+            "Выберите стандартное или своё состояние, но не оба сразу.",
+            code="invalid_condition",
+        )
+
+    if kind == ListingKind.SELL.value:
+        if condition is None and condition_text is None:
+            raise ValidationAppError("Укажите состояние устройства.", code="condition_required")
+        if price_negotiable:
+            if price_amount is not None:
+                raise ValidationAppError(
+                    "Для договорной цены не нужно указывать сумму.",
+                    code="invalid_price",
+                )
+        elif price_amount is None:
+            raise ValidationAppError(
+                "Укажите цену или выберите «Договорная».", code="price_required"
+            )
+    elif price_negotiable:
+        raise ValidationAppError(
+            "Договорная цена доступна только для объявления «Продам».",
+            code="invalid_price",
+        )
 
 
 def get_listing(session: Session, listing_id: int) -> Listing:
@@ -100,6 +139,14 @@ def create_listing(
             code="rules_not_accepted",
         )
 
+    validate_listing_content(
+        payload.kind.value,
+        payload.condition,
+        payload.condition_text,
+        payload.price_amount,
+        payload.price_negotiable,
+    )
+
     now = utcnow()
     listing = Listing(
         owner_telegram_id=owner.telegram_id,
@@ -107,7 +154,9 @@ def create_listing(
         title=payload.title,
         description=payload.description,
         condition=payload.condition.value if payload.condition else None,
+        condition_text=payload.condition_text,
         price_amount=payload.price_amount,
+        price_negotiable=payload.price_negotiable,
         currency="RUB",
         district=payload.district,
         status=ListingStatus.ACTIVE.value,
@@ -127,6 +176,42 @@ def create_listing(
     # The outbox row is committed together with the listing: if the
     # notification cannot be delivered later, the listing is still stored.
     notification_service.enqueue_listing_created(session, settings, listing)
+    session.commit()
+    return listing
+
+
+def update_listing(
+    session: Session,
+    owner: User,
+    listing_id: int,
+    payload: UpdateListingIn,
+) -> Listing:
+    """Update the owner's listing fields without changing its type."""
+
+    listing = get_owned_listing(session, owner.telegram_id, listing_id)
+    validate_listing_content(
+        listing.kind,
+        payload.condition,
+        payload.condition_text,
+        payload.price_amount,
+        payload.price_negotiable,
+    )
+
+    listing.title = payload.title
+    listing.description = payload.description
+    listing.condition = payload.condition.value if payload.condition else None
+    listing.condition_text = payload.condition_text
+    listing.price_amount = payload.price_amount
+    listing.price_negotiable = payload.price_negotiable
+    listing.district = payload.district
+    listing.updated_at = utcnow()
+
+    audit_service.record_event(
+        session,
+        "listing_updated",
+        actor_telegram_id=owner.telegram_id,
+        listing_id=listing.id,
+    )
     session.commit()
     return listing
 
@@ -245,8 +330,8 @@ def count_photos(session: Session, listing_id: int) -> int:
 
 
 def ensure_listing_accepts_photos(session: Session, listing: Listing, settings: Settings) -> None:
-    if listing.status != ListingStatus.ACTIVE.value:
-        raise ConflictError("Добавлять фотографии можно только к активному объявлению.")
+    """Photos can be added/removed while editing any own listing."""
+
     if count_photos(session, listing.id) >= settings.photo_max_count:
         raise ConflictError(
             f"Достигнут лимит фотографий ({settings.photo_max_count}).",
