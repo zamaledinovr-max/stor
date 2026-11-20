@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import case, func, or_, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.config import Settings
@@ -123,6 +123,25 @@ def get_listing_for_viewer(
     ):
         raise NotFoundError("Объявление не найдено.")
     return listing
+
+
+def register_view(session: Session, listing: Listing) -> None:
+    """Count one detail page opening (simple counter, no deduplication).
+
+    `updated_at` is passed explicitly: otherwise the column-level `onupdate`
+    would mark the listing as edited after every view.
+    """
+
+    session.execute(
+        update(Listing)
+        .where(Listing.id == listing.id)
+        .values(
+            views_count=Listing.views_count + 1,
+            updated_at=Listing.updated_at,
+        )
+    )
+    session.commit()
+    session.refresh(listing, attribute_names=["views_count"])
 
 
 def get_owned_listing(session: Session, owner_telegram_id: int, listing_id: int) -> Listing:

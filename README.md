@@ -20,6 +20,8 @@
 - карточка: тип, название, цена/бюджет, краткое описание под фото (до 3 строк,
   чтобы не открывать объявление), состояние, район, обложка, количество фото,
   относительное время («3 часа назад»);
+- в карточке объявления показывается счётчик просмотров (простой: каждое
+  открытие увеличивает значение);
 - состояния «загрузка» (skeleton), «ничего не найдено», «ошибка сети» с повтором;
 - рекламный блок из конфигурации (отключаемый, без сырого HTML);
 - открытие конкретного объявления по deep link `?listing=<id>` или `start_param`.
@@ -125,7 +127,7 @@ telegram-device-market/
 │   └── js/
 │       ├── api.js  telegram.js  format.js  dom.js  app.js
 │       └── views/ catalog.js  create.js  account.js  detail.js
-├── migrations/                 # Alembic env + ревизии 0001–0003
+├── migrations/                 # Alembic env + ревизии 0001–0004
 ├── scripts/dev_init_data.py    # подписанный initData для локальной отладки
 ├── scripts/start_all.sh        # миграции + API + бот в одном контейнере
 ├── scripts/init_git.ps1        # инициализация Git и push одной командой
@@ -371,7 +373,7 @@ Authorization: tma <initData>
 | GET | `/api/me/listings` | авторизован | свои объявления + счётчики по статусам. 401 |
 | GET | `/api/listings` | авторизован | каталог только активных. Параметры: `q`, `kind`, `district`, `condition`, `min_price`, `max_price`, `sort` (`newest`/`price_asc`/`price_desc`), `limit` (1–50), `offset`. Каждая карточка содержит `description` — превью показывается под фото. 401, 422 |
 | POST | `/api/listings` | авторизован + rate limit | создание. Тело: `kind`, `title`, `description?`, `condition?`, `condition_text?`, `price_amount?`, `price_negotiable?`, `district`, `rules_accepted?`. 201; 401, 409, 422 (`rules_not_accepted`, `validation_error`), 429 |
-| GET | `/api/listings/{id}` | авторизован | активное объявление видят все; неактивное — только владелец (иначе 404). 401, 404 |
+| GET | `/api/listings/{id}` | авторизован | активное объявление видят все; неактивное — только владелец (иначе 404). Открытие увеличивает `views_count`. 401, 404 |
 | GET | `/api/ad/image` | без авторизации | изображение активного рекламного баннера; 404, если баннера нет |
 | PUT | `/api/listings/{id}` | только владелец | обновление названия, описания, состояния, цены, района. Тип объявления не меняется. 200; 401, 403, 404, 422, 429 |
 | POST | `/api/listings/{id}/complaints` | авторизован + rate limit | `{"reason": "fraud", "comment": "..."}`; 201 `ComplaintOut`. 401, 404, 422 (`own_listing`, `validation_error`), 429 |

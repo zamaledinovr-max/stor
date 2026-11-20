@@ -1,7 +1,7 @@
 /** Listing detail bottom sheet. */
 
 import { clear, el, show } from "../dom.js";
-import { formatDateTime, formatListingPrice, timeAgo } from "../format.js";
+import { formatCount, formatDateTime, formatListingPrice, timeAgo } from "../format.js";
 import { openLink } from "../telegram.js";
 
 export function createDetailView({ api, getMeta, openSupport, notify, onChanged, onEdit }) {
@@ -284,6 +284,20 @@ export function createDetailView({ api, getMeta, openSupport, notify, onChanged,
         el("div", { class: "detail__row" }, [
           el("dt", { text: "Район" }),
           el("dd", { text: listing.district }),
+        ]),
+        el("div", { class: "detail__row" }, [
+          el("dt", { text: "Просмотры" }),
+          el(
+            "dd",
+            {
+              text: formatCount(
+                listing.views_count || 0,
+                "просмотр",
+                "просмотра",
+                "просмотров",
+              ),
+            },
+          ),
         ]),
         el("div", { class: "detail__row" }, [
           el("dt", { text: "Продавец" }),

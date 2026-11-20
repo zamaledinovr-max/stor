@@ -86,6 +86,8 @@ class Listing(Base):
     moderation_attempt: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     # Reason typed by the administrator when the listing is rejected.
     moderation_reason: Mapped[str | None] = mapped_column(String(300))
+    # Simple view counter: incremented on every detail page opening.
+    views_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
     )

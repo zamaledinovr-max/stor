@@ -204,6 +204,7 @@ class ListingSummaryOut(BaseModel):
     moderation_label: str
     moderation_reason: str | None
     created_at: datetime
+    views_count: int
     cover_photo: PhotoOut | None
     photo_count: int
     is_owner: bool

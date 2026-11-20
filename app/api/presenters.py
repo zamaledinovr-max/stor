@@ -88,6 +88,7 @@ def listing_summary(listing: Listing, settings: Settings, viewer_id: int) -> Lis
         ),
         moderation_reason=listing.moderation_reason,
         created_at=as_utc(listing.created_at),
+        views_count=listing.views_count,
         cover_photo=photo_out(photos[0], settings) if photos else None,
         photo_count=len(photos),
         is_owner=listing.owner_telegram_id == viewer_id,

@@ -133,6 +133,7 @@ def read_listing(
         listing_id,
         can_view_unpublished=auth.is_admin,
     )
+    listing_service.register_view(session, listing)
     return listing_detail(listing, settings, auth.telegram_id)
 
 
