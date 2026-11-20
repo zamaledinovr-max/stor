@@ -46,6 +46,9 @@ def settings_kwargs(tmp_path: Path, **overrides) -> dict:
         "app_auto_create_tables": True,
         "local_storage_dir": tmp_path / "media",
         "frontend_dir": tmp_path / "missing-frontend",
+        # Most tests exercise the catalog without the moderation step; the
+        # moderated flow has its own tests that switch this flag on.
+        "listing_moderation_enabled": False,
         "rate_limit_requests_per_minute_per_ip": 0,
         "log_level": "WARNING",
     }

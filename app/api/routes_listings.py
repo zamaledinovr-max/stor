@@ -127,7 +127,12 @@ def read_listing(
     settings: Settings = Depends(get_app_settings),
     listing_id: int = Path(ge=1),
 ) -> ListingDetailOut:
-    listing = listing_service.get_listing_for_viewer(session, auth.telegram_id, listing_id)
+    listing = listing_service.get_listing_for_viewer(
+        session,
+        auth.telegram_id,
+        listing_id,
+        can_view_unpublished=auth.is_admin,
+    )
     return listing_detail(listing, settings, auth.telegram_id)
 
 
@@ -145,7 +150,7 @@ def update_listing(
     settings: Settings = Depends(get_app_settings),
     listing_id: int = Path(ge=1),
 ) -> ListingDetailOut:
-    listing_service.update_listing(session, auth.user, listing_id, payload)
+    listing_service.update_listing(session, settings, auth.user, listing_id, payload)
     stored = listing_service.get_listing(session, listing_id)
     return listing_detail(stored, settings, auth.telegram_id)
 

@@ -15,7 +15,8 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramAPIError
-from aiogram.types import BotCommand, MenuButtonWebApp, WebAppInfo
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import BotCommand, BotCommandScopeChat, MenuButtonWebApp, WebAppInfo
 
 from app.bot.handlers import build_router
 from app.bot.notifications import outbox_worker
@@ -26,15 +27,23 @@ from app.db import build_engine, build_session_factory
 logger = logging.getLogger(__name__)
 
 
+USER_COMMANDS = [
+    BotCommand(command="start", description="Открыть каталог"),
+    BotCommand(command="help", description="Справка"),
+    BotCommand(command="id", description="Мой Telegram ID"),
+]
+
+ADMIN_COMMANDS = [
+    BotCommand(command="stats", description="Статистика"),
+    BotCommand(command="add", description="Добавить рекламу"),
+    BotCommand(command="dadd", description="Удалить рекламу"),
+    BotCommand(command="pres", description="Рассылка пользователям"),
+]
+
+
 async def _configure_bot(bot: Bot, settings: Settings) -> None:
     try:
-        await bot.set_my_commands(
-            [
-                BotCommand(command="start", description="Открыть каталог"),
-                BotCommand(command="help", description="Справка"),
-                BotCommand(command="id", description="Мой Telegram ID"),
-            ]
-        )
+        await bot.set_my_commands(USER_COMMANDS)
         await bot.set_chat_menu_button(
             menu_button=MenuButtonWebApp(
                 text="Каталог", web_app=WebAppInfo(url=settings.webapp_url)
@@ -42,6 +51,18 @@ async def _configure_bot(bot: Bot, settings: Settings) -> None:
         )
     except TelegramAPIError:
         logger.warning("Could not update bot commands/menu button", exc_info=True)
+
+    # Administrative commands are listed only in the chats of TELEGRAM_ADMIN_IDS.
+    for admin_id in settings.admin_ids:
+        try:
+            await bot.set_my_commands(
+                [*USER_COMMANDS, *ADMIN_COMMANDS],
+                scope=BotCommandScopeChat(chat_id=admin_id),
+            )
+        except TelegramAPIError:
+            logger.warning(
+                "Could not set admin commands for %s", admin_id, exc_info=True
+            )
 
 
 async def run_bot(settings: Settings | None = None) -> None:
@@ -57,7 +78,7 @@ async def run_bot(settings: Settings | None = None) -> None:
             link_preview_is_disabled=True,
         ),
     )
-    dispatcher = Dispatcher()
+    dispatcher = Dispatcher(storage=MemoryStorage())
     dispatcher.include_router(build_router(app_settings, session_factory))
 
     worker = asyncio.create_task(

@@ -244,6 +244,29 @@ export function createDetailView({ api, getMeta, openSupport, notify, onChanged,
     }
     body.appendChild(badges);
 
+    if (listing.moderation_status && listing.moderation_status !== "approved") {
+      const notice = el("div", { class: "detail__notice" }, [
+        el("strong", { text: listing.moderation_label }),
+      ]);
+      if (listing.moderation_status === "pending") {
+        notice.appendChild(
+          el("span", {
+            class: "detail__notice-reason",
+            text: "Объявление проверяет администратор — в каталоге оно появится после одобрения.",
+          }),
+        );
+      }
+      if (listing.moderation_reason) {
+        notice.appendChild(
+          el("span", {
+            class: "detail__notice-reason",
+            text: `Причина: ${listing.moderation_reason}`,
+          }),
+        );
+      }
+      body.appendChild(notice);
+    }
+
     body.appendChild(
       el("dl", { class: "detail__info" }, [
         el("div", { class: "detail__row" }, [

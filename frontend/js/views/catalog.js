@@ -418,24 +418,44 @@ export function createCatalogView({ api, getMeta, openListing, openLink, notify 
       return;
     }
     clear(els.adSlot);
+
+    if (ad.image_url) {
+      const banner = el(
+        "button",
+        {
+          class: "ad-banner",
+          type: "button",
+          onclick: () => openLink(ad.link_url),
+          attrs: { "aria-label": ad.title ? `Реклама: ${ad.title}` : "Реклама" },
+        },
+        [
+          el("img", {
+            class: "ad-banner__image",
+            src: ad.image_url,
+            alt: ad.title || "",
+            loading: "lazy",
+            decoding: "async",
+            referrerpolicy: "no-referrer",
+          }),
+        ],
+      );
+      const overlay = el("span", { class: "ad-banner__overlay" }, [
+        el("span", { class: "ad-banner__label", text: "Реклама" }),
+      ]);
+      if (ad.title) {
+        overlay.appendChild(el("span", { class: "ad-banner__title", text: ad.title }));
+      }
+      banner.appendChild(overlay);
+      els.adSlot.appendChild(banner);
+      show(els.adSlot, true);
+      return;
+    }
+
     const content = el("div", { class: "ad__content" }, [
       el("span", { class: "ad__label", text: "Реклама" }),
       el("span", { class: "ad__title", text: ad.title }),
     ]);
     if (ad.text) content.appendChild(el("span", { class: "ad__text", text: ad.text }));
-
-    const adBox = el("div", { class: "ad" });
-    if (ad.image_url) {
-      const image = el("img", {
-        class: "ad__image",
-        src: ad.image_url,
-        alt: "",
-        loading: "lazy",
-        referrerpolicy: "no-referrer",
-      });
-      image.addEventListener("error", () => image.remove());
-      adBox.appendChild(image);
-    }
     content.appendChild(
       el("button", {
         class: "ad__link",
@@ -444,8 +464,7 @@ export function createCatalogView({ api, getMeta, openListing, openLink, notify 
         onclick: () => openLink(ad.link_url),
       }),
     );
-    adBox.appendChild(content);
-    els.adSlot.appendChild(adBox);
+    els.adSlot.appendChild(el("div", { class: "ad" }, [content]));
     show(els.adSlot, true);
   }
 

@@ -23,6 +23,18 @@ class ListingStatus(str, Enum):
     CLOSED = "closed"
 
 
+class ModerationStatus(str, Enum):
+    """Publication review state, independent of the listing lifecycle status.
+
+    `pending` listings are visible to the owner (and administrators) only,
+    `rejected` ones stay with the owner so they can be fixed and resubmitted.
+    """
+
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
 class ListingCondition(str, Enum):
     """Device condition. Optional for "Куплю" listings."""
 
@@ -63,6 +75,12 @@ STATUS_LABELS: dict[str, str] = {
     ListingStatus.ACTIVE.value: "Активное",
     ListingStatus.SOLD.value: "Продано",
     ListingStatus.CLOSED.value: "Закрыто",
+}
+
+MODERATION_LABELS: dict[str, str] = {
+    ModerationStatus.PENDING.value: "На проверке",
+    ModerationStatus.APPROVED.value: "Опубликовано",
+    ModerationStatus.REJECTED.value: "Отклонено",
 }
 
 CONDITION_LABELS: dict[str, str] = {

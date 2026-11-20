@@ -523,18 +523,36 @@ export function createCreateView({
     form.hidden = true;
     if (successNode) successNode.remove();
 
+    const pending = listing.moderation_status === "pending";
+    const title = isEdit
+      ? pending
+        ? "Объявление снова на проверке"
+        : "Объявление обновлено"
+      : pending
+        ? "Объявление отправлено на проверку"
+        : "Объявление опубликовано";
+
     const container = document.getElementById("view-sell");
     successNode = el("div", { class: "state" }, [
       el("div", { class: "state__icon", text: "✅" }),
       el("div", {
         class: "state__title",
-        text: isEdit ? "Объявление обновлено" : "Объявление опубликовано",
+        text: title,
       }),
       el("div", {
         class: "state__text",
         text: `${listing.kind_label}: ${listing.title} · ${formatListingPrice(listing)}`,
       }),
     ]);
+
+    if (pending) {
+      successNode.appendChild(
+        el("div", {
+          class: "state__text",
+          text: "Администратор проверит объявление — после одобрения оно появится в каталоге.",
+        }),
+      );
+    }
 
     if (photoFailures.length) {
       successNode.appendChild(
@@ -642,9 +660,18 @@ export function createCreateView({
         }
       }
 
-      setSubmitLabel(isEdit ? "Сохранено" : "Опубликовано");
+      const pending = listing.moderation_status === "pending";
+      setSubmitLabel(isEdit ? "Сохранено" : pending ? "Отправлено" : "Опубликовано");
       renderSuccess(listing, photoFailures, isEdit);
-      notify(isEdit ? "Объявление обновлено." : "Объявление опубликовано.");
+      notify(
+        pending
+          ? isEdit
+            ? "Объявление отправлено на повторную проверку."
+            : "Объявление отправлено на проверку."
+          : isEdit
+            ? "Объявление обновлено."
+            : "Объявление опубликовано.",
+      );
     } catch (error) {
       setSubmitLabel(isEdit ? "Сохранить" : "Опубликовать");
       applyServerErrors(error);

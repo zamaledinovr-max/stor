@@ -12,7 +12,7 @@ from app.core.config import Settings
 from app.schemas.common import ErrorResponse, MeOut, ValidationErrorResponse
 from app.schemas.listing import MyListingsOut
 from app.schemas.meta import MetaOut
-from app.services import listing_service
+from app.services import ad_service, listing_service
 
 router = APIRouter(prefix="/api", tags=["profile"])
 
@@ -43,9 +43,10 @@ def read_me(
 )
 def read_meta(
     _: AuthContext = Depends(get_auth_context),
+    session: Session = Depends(get_session),
     settings: Settings = Depends(get_app_settings),
 ) -> MetaOut:
-    return build_meta(settings)
+    return build_meta(settings, ad_service.get_active_ad(session))
 
 
 @router.get(

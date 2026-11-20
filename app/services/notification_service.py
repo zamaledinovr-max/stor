@@ -18,7 +18,12 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Settings
-from app.core.enums import COMPLAINT_REASON_LABELS, KIND_LABELS, CONDITION_LABELS
+from app.core.enums import (
+    COMPLAINT_REASON_LABELS,
+    CONDITION_LABELS,
+    KIND_LABELS,
+    ModerationStatus,
+)
 from app.core.timeutils import as_utc, utcnow
 from app.models import (
     OUTBOX_FAILED,
@@ -43,6 +48,7 @@ class NotificationSender(Protocol):
         text: str,
         button_text: str | None,
         button_url: str | None,
+        buttons: list[list[dict[str, str]]] | None = None,
     ) -> None: ...
 
 
@@ -91,16 +97,33 @@ def build_listing_text(listing: Listing) -> str:
     return "\n".join(lines)
 
 
+def build_moderation_buttons(listing: Listing) -> list[list[dict[str, str]]]:
+    """Inline keyboard attached to the notification for a pending listing."""
+
+    return [
+        [
+            {"text": "✅ Опубликовать", "callback_data": f"mod:approve:{listing.id}"},
+            {"text": "❌ Отклонить", "callback_data": f"mod:reject:{listing.id}"},
+        ]
+    ]
+
+
 def build_listing_payload(listing: Listing, settings: Settings) -> dict[str, Any]:
     text = build_listing_text(listing)
     if len(text) > 3500:
         text = text[:3500] + "…"
-    return {
+    payload: dict[str, Any] = {
         "text": text,
         "button_text": "Открыть объявление",
         "button_url": f"{settings.webapp_url}/?listing={listing.id}",
         "listing_id": listing.id,
     }
+    if (
+        settings.listing_moderation_enabled
+        and listing.moderation_status == ModerationStatus.PENDING.value
+    ):
+        payload["buttons"] = build_moderation_buttons(listing)
+    return payload
 
 
 def _enqueue_for_admins(
@@ -137,6 +160,78 @@ def enqueue_listing_created(
         f"listing_created:{listing.id}",
         build_listing_payload(listing, settings),
     )
+
+
+def _enqueue_for_chat(
+    session: Session,
+    chat_id: int,
+    dedupe_key: str,
+    payload: dict[str, Any],
+) -> NotificationOutbox:
+    row = NotificationOutbox(
+        dedupe_key=dedupe_key,
+        chat_id=chat_id,
+        payload=payload,
+        status=OUTBOX_PENDING,
+        attempts=0,
+        created_at=utcnow(),
+    )
+    session.add(row)
+    return row
+
+
+def enqueue_listing_resubmitted(
+    session: Session, settings: Settings, listing: Listing
+) -> list[NotificationOutbox]:
+    """Notify admins again after the owner fixed a rejected listing."""
+
+    payload = build_listing_payload(listing, settings)
+    text = "🔄 Объявление исправлено и отправлено на проверку\n\n" + str(payload["text"])
+    payload["text"] = text[:3500] + ("…" if len(text) > 3500 else "")
+    return _enqueue_for_admins(
+        session,
+        settings,
+        f"listing_resubmitted:{listing.id}:{listing.moderation_attempt}",
+        payload,
+    )
+
+
+def build_author_decision_text(listing: Listing, approved: bool, reason: str | None) -> str:
+    if approved:
+        return (
+            f"✅ Ваше объявление №{listing.id} опубликовано.\n"
+            f"{escape(listing.title)}\n\n"
+            "Оно уже видно в каталоге."
+        )
+    reason_text = escape((reason or "").strip() or "не указана")
+    return (
+        f"❌ Ваше объявление №{listing.id} отклонено.\n"
+        f"{escape(listing.title)}\n"
+        f"Причина: {reason_text}\n\n"
+        "Исправьте объявление и отправьте на проверку снова."
+    )
+
+
+def enqueue_author_decision(
+    session: Session,
+    listing: Listing,
+    *,
+    approved: bool,
+    reason: str | None = None,
+) -> NotificationOutbox:
+    """Tell the owner about the moderation decision (no commit here)."""
+
+    now = utcnow()
+    dedupe_key = (
+        f"listing_decision:{listing.id}:{listing.moderation_attempt}:"
+        f"{listing.moderation_status}:{int(now.timestamp() * 1_000_000)}"
+    )
+    payload = {
+        "text": build_author_decision_text(listing, approved, reason),
+        "listing_id": listing.id,
+        "moderation": listing.moderation_status,
+    }
+    return _enqueue_for_chat(session, listing.owner_telegram_id, dedupe_key, payload)
 
 
 def build_complaint_text(complaint: ListingComplaint, listing: Listing) -> str:
@@ -239,6 +334,7 @@ async def dispatch_pending(
         text = str(payload.get("text") or "")
         button_text = payload.get("button_text")
         button_url = payload.get("button_url")
+        buttons = payload.get("buttons")
         if not text:
             permanent = True
             error = "empty payload"
@@ -251,6 +347,7 @@ async def dispatch_pending(
                 text,
                 str(button_text) if button_text else None,
                 str(button_url) if button_url else None,
+                buttons if isinstance(buttons, list) else None,
             )
         except Exception as exc:
             permanent = isinstance(exc, PermanentNotificationError)

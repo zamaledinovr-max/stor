@@ -55,6 +55,19 @@ def listing_keyboard(button_text: str, button_url: str) -> InlineKeyboardMarkup:
     )
 
 
+def broadcast_confirm_keyboard() -> InlineKeyboardMarkup:
+    """Confirmation before sending a message to every bot user."""
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="✅ Отправить", callback_data="bc:send"),
+                InlineKeyboardButton(text="Отмена", callback_data="bc:cancel"),
+            ]
+        ]
+    )
+
+
 def start_text(settings: Settings, first_name: str | None) -> str:
     greeting = f"Здравствуйте, <b>{escape(first_name)}</b>!" if first_name else "Здравствуйте!"
     return (

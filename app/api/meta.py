@@ -12,6 +12,7 @@ from app.core.enums import (
     ListingKind,
     allowed_statuses,
 )
+from app.models import Ad
 from app.schemas.common import OptionOut
 from app.schemas.meta import AdOut, MetaOut, PhotoLimitsOut, SupportOut
 
@@ -23,12 +24,23 @@ def build_support(settings: Settings) -> SupportOut | None:
     return SupportOut(url=settings.support_url, label=label)
 
 
-def build_ad(settings: Settings) -> AdOut | None:
+def build_ad(settings: Settings, ad: Ad | None = None) -> AdOut | None:
     """Return a complete ad block or None.
 
+    The banner stored from the bot wins; the `AD_*` environment variables stay
+    as a fallback for deployments that did not migrate to the bot flow yet.
     An incomplete configuration must never produce an empty or broken block.
     All fields are plain text/URLs rendered with `textContent`, never as HTML.
     """
+
+    if ad is not None:
+        return AdOut(
+            title=ad.title[:80],
+            text=(ad.text or "").strip()[:300] or None,
+            image_url=f"/api/ad/image?v={ad.id}" if ad.image_key else None,
+            link_url=ad.link_url,
+            button_text=(ad.button_text or "Подробнее").strip()[:32] or "Подробнее",
+        )
 
     if not settings.ad_enabled:
         return None
@@ -45,7 +57,7 @@ def build_ad(settings: Settings) -> AdOut | None:
     )
 
 
-def build_meta(settings: Settings) -> MetaOut:
+def build_meta(settings: Settings, ad: Ad | None = None) -> MetaOut:
     return MetaOut(
         app_name=settings.app_name,
         bot_username=settings.normalized_bot_username,
@@ -65,7 +77,7 @@ def build_meta(settings: Settings) -> MetaOut:
             allowed_mime_types=list(settings.allowed_photo_mime_types),
         ),
         support=build_support(settings),
-        ad=build_ad(settings),
+        ad=build_ad(settings, ad),
         rules=settings.listing_rules,
         complaint_reasons=[
             OptionOut(value=value, label=label)

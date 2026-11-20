@@ -70,6 +70,10 @@ class Settings(BaseSettings):
     # goods). When set, the client must send `rules_accepted=true` and the
     # server rejects publications without the confirmation.
     listing_rules_text: str | None = None
+    # When enabled (default) a new listing becomes visible in the catalog only
+    # after an administrator approves it in Telegram. Disable only for local
+    # experiments: the moderated flow is the intended production behaviour.
+    listing_moderation_enabled: bool = True
 
     cors_allowed_origins: str = ""
     allowed_hosts: str = "*"

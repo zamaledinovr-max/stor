@@ -3,6 +3,11 @@
 import { clear, el } from "../dom.js";
 import { formatListingPrice, timeAgo } from "../format.js";
 
+const MODERATION_GROUPS = [
+  { key: "pending", title: "На проверке" },
+  { key: "rejected", title: "Отклонённые" },
+];
+
 const GROUPS = [
   { key: "active", title: "Активные" },
   { key: "sold", title: "Проданные" },
@@ -73,26 +78,38 @@ export function createAccountView({ api, getMe, openListing, openCreate, openEdi
         })
       : el("div", { class: "account-item__thumb account-item__thumb--empty", text: "Нет фото" });
 
+    const approved = item.moderation_status === "approved";
+    const stateLabel = approved ? item.status_label : item.moderation_label;
+    const actions = [
+      el("button", {
+        class: "chip",
+        type: "button",
+        text: "Открыть",
+        onclick: () => openListing(item.id),
+      }),
+      el("button", {
+        class: "chip",
+        type: "button",
+        text: "Редактировать",
+        onclick: () => openEdit(item.id),
+      }),
+    ];
+    if (approved) actions.push(statusButton(item));
+
     const body = el("div", { class: "account-item__body" }, [
       el("div", { class: "account-item__title", text: item.title }),
-      el("div", { class: "muted", text: `${item.status_label} · ${formatListingPrice(item)}` }),
+      el("div", { class: "muted", text: `${stateLabel} · ${formatListingPrice(item)}` }),
       el("div", { class: "muted", text: `${item.district} · ${timeAgo(item.created_at)}` }),
-      el("div", { class: "account-item__actions" }, [
-        el("button", {
-          class: "chip",
-          type: "button",
-          text: "Открыть",
-          onclick: () => openListing(item.id),
-        }),
-        el("button", {
-          class: "chip",
-          type: "button",
-          text: "Редактировать",
-          onclick: () => openEdit(item.id),
-        }),
-        statusButton(item),
-      ]),
     ]);
+    if (!approved && item.moderation_reason) {
+      body.appendChild(
+        el("div", {
+          class: "account-item__reason",
+          text: `Причина: ${item.moderation_reason}`,
+        }),
+      );
+    }
+    body.appendChild(el("div", { class: "account-item__actions" }, actions));
 
     return el("div", { class: "account-item" }, [thumb, body]);
   }
@@ -134,6 +151,19 @@ export function createAccountView({ api, getMe, openListing, openCreate, openEdi
     );
   }
 
+  function renderGroup(title, items) {
+    if (!items.length) return;
+    const section = el("section", { class: "account-group" });
+    section.appendChild(
+      el("h2", { class: "account-group__title" }, [
+        title,
+        el("span", { class: "muted", text: String(items.length) }),
+      ]),
+    );
+    for (const item of items) section.appendChild(accountItem(item));
+    groupsNode.appendChild(section);
+  }
+
   function renderGroups() {
     clear(groupsNode);
     if (!data) return;
@@ -141,18 +171,18 @@ export function createAccountView({ api, getMe, openListing, openCreate, openEdi
       renderEmpty();
       return;
     }
-    for (const group of GROUPS) {
-      const items = data.items.filter((item) => item.status === group.key);
-      if (!items.length) continue;
-      const section = el("section", { class: "account-group" });
-      section.appendChild(
-        el("h2", { class: "account-group__title" }, [
-          group.title,
-          el("span", { class: "muted", text: String(items.length) }),
-        ]),
+    for (const group of MODERATION_GROUPS) {
+      renderGroup(
+        group.title,
+        data.items.filter((item) => item.moderation_status === group.key),
       );
-      for (const item of items) section.appendChild(accountItem(item));
-      groupsNode.appendChild(section);
+    }
+    const approved = data.items.filter((item) => item.moderation_status === "approved");
+    for (const group of GROUPS) {
+      renderGroup(
+        group.title,
+        approved.filter((item) => item.status === group.key),
+      );
     }
   }
 

@@ -9,9 +9,11 @@ from app.core.config import Settings
 from app.core.enums import (
     CONDITION_LABELS,
     KIND_LABELS,
+    MODERATION_LABELS,
     STATUS_LABELS,
     ListingCondition,
     ListingKind,
+    ModerationStatus,
     allowed_statuses,
 )
 from app.core.signing import build_photo_url
@@ -80,6 +82,11 @@ def listing_summary(listing: Listing, settings: Settings, viewer_id: int) -> Lis
         district=listing.district,
         status=listing.status,
         status_label=STATUS_LABELS[listing.status],
+        moderation_status=listing.moderation_status,
+        moderation_label=MODERATION_LABELS.get(
+            listing.moderation_status, listing.moderation_status
+        ),
+        moderation_reason=listing.moderation_reason,
         created_at=as_utc(listing.created_at),
         cover_photo=photo_out(photos[0], settings) if photos else None,
         photo_count=len(photos),
@@ -100,7 +107,12 @@ def listing_detail(listing: Listing, settings: Settings, viewer_id: int) -> List
         photos=[photo_out(photo, settings) for photo in listing.photos],
         owner_username=owner.username if owner else None,
         owner_display_name=owner.display_name if owner else "Пользователь Telegram",
-        available_statuses=available if summary.is_owner else [],
+        available_statuses=(
+            available
+            if summary.is_owner
+            and listing.moderation_status == ModerationStatus.APPROVED.value
+            else []
+        ),
     )
 
 

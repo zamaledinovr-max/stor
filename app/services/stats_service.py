@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from sqlalchemy import and_, case, func, select
 from sqlalchemy.orm import Session
 
-from app.core.enums import ListingKind, ListingStatus
+from app.core.enums import ListingKind, ListingStatus, ModerationStatus
 from app.models import Listing, User
 
 
@@ -31,7 +31,10 @@ def collect_stats(session: Session) -> CatalogStats:
     row = session.execute(
         select(
             func.count(Listing.id),
-            count_where(Listing.status == ListingStatus.ACTIVE.value),
+            count_where(
+                Listing.status == ListingStatus.ACTIVE.value,
+                Listing.moderation_status == ModerationStatus.APPROVED.value,
+            ),
             count_where(Listing.status == ListingStatus.SOLD.value),
             count_where(Listing.status == ListingStatus.CLOSED.value),
             count_where(Listing.kind == ListingKind.SELL.value),
@@ -39,10 +42,12 @@ def collect_stats(session: Session) -> CatalogStats:
             count_where(
                 Listing.kind == ListingKind.SELL.value,
                 Listing.status == ListingStatus.ACTIVE.value,
+                Listing.moderation_status == ModerationStatus.APPROVED.value,
             ),
             count_where(
                 Listing.kind == ListingKind.BUY.value,
                 Listing.status == ListingStatus.ACTIVE.value,
+                Listing.moderation_status == ModerationStatus.APPROVED.value,
             ),
         )
     ).one()

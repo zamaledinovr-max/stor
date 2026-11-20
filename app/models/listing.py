@@ -12,6 +12,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Index,
+    Integer,
     Numeric,
     String,
     Text,
@@ -20,7 +21,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.districts import DISTRICTS
-from app.core.enums import ListingCondition, ListingKind, ListingStatus
+from app.core.enums import ListingCondition, ListingKind, ListingStatus, ModerationStatus
 from app.core.timeutils import utcnow
 from app.db.base import Base
 
@@ -37,6 +38,10 @@ class Listing(Base):
         CheckConstraint("kind IN ('sell', 'buy')", name="ck_listings_kind"),
         CheckConstraint("status IN ('active', 'sold', 'closed')", name="ck_listings_status"),
         CheckConstraint(
+            "moderation_status IN ('pending', 'approved', 'rejected')",
+            name="ck_listings_moderation_status",
+        ),
+        CheckConstraint(
             "condition IS NULL OR condition IN "
             f"({', '.join(repr(item.value) for item in ListingCondition)})",
             name="ck_listings_condition",
@@ -50,6 +55,7 @@ class Listing(Base):
         Index("ix_listings_district_status", "district", "status"),
         Index("ix_listings_price", "price_amount"),
         Index("ix_listings_owner_status", "owner_telegram_id", "status"),
+        Index("ix_listings_moderation", "moderation_status", "created_at"),
         Index("ix_listings_created_at", "created_at"),
     )
 
@@ -72,6 +78,14 @@ class Listing(Base):
     status: Mapped[str] = mapped_column(
         String(8), default=ListingStatus.ACTIVE.value, nullable=False
     )
+    moderation_status: Mapped[str] = mapped_column(
+        String(16), default=ModerationStatus.PENDING.value, nullable=False
+    )
+    # Incremented on every (re)submission; keeps outbox dedupe keys unique when
+    # a rejected listing is fixed and sent to the administrators again.
+    moderation_attempt: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    # Reason typed by the administrator when the listing is rejected.
+    moderation_reason: Mapped[str | None] = mapped_column(String(300))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
     )

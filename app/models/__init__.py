@@ -1,5 +1,6 @@
 """ORM models. Importing this package registers every table on `Base.metadata`."""
 
+from app.models.ad import Ad
 from app.models.audit import AuditEvent
 from app.models.complaint import COMPLAINT_STATUS_NEW, ListingComplaint
 from app.models.listing import Listing
@@ -17,6 +18,7 @@ __all__ = [
     "OUTBOX_FAILED",
     "OUTBOX_PENDING",
     "OUTBOX_SENT",
+    "Ad",
     "AuditEvent",
     "Listing",
     "ListingComplaint",

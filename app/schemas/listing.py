@@ -200,6 +200,9 @@ class ListingSummaryOut(BaseModel):
     district: str
     status: ListingStatus
     status_label: str
+    moderation_status: str
+    moderation_label: str
+    moderation_reason: str | None
     created_at: datetime
     cover_photo: PhotoOut | None
     photo_count: int

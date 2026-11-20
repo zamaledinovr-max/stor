@@ -7,9 +7,9 @@ import logging
 
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.bot.keyboards import listing_keyboard
 from app.core.config import Settings
 from app.services.notification_service import (
     PermanentNotificationError,
@@ -17,6 +17,48 @@ from app.services.notification_service import (
 )
 
 logger = logging.getLogger(__name__)
+
+_CALLBACK_DATA_LIMIT = 64
+_BUTTON_TEXT_LIMIT = 64
+
+
+def build_inline_keyboard(
+    buttons: list[list[dict[str, str]]] | None,
+    button_text: str | None,
+    button_url: str | None,
+) -> InlineKeyboardMarkup | None:
+    """Build a keyboard from the outbox payload.
+
+    Admin-defined callbacks are validated and truncated: the payload comes from
+    the database, and Telegram rejects oversized `callback_data` values.
+    """
+
+    rows: list[list[InlineKeyboardButton]] = []
+    for row in buttons or []:
+        if not isinstance(row, list):
+            continue
+        built: list[InlineKeyboardButton] = []
+        for item in row:
+            if not isinstance(item, dict):
+                continue
+            text = str(item.get("text") or "").strip()[:_BUTTON_TEXT_LIMIT]
+            callback_data = str(item.get("callback_data") or "").strip()[:_CALLBACK_DATA_LIMIT]
+            if not text or not callback_data:
+                continue
+            built.append(InlineKeyboardButton(text=text, callback_data=callback_data))
+        if built:
+            rows.append(built)
+
+    if button_url:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=(button_text or "Открыть объявление")[:_BUTTON_TEXT_LIMIT],
+                    web_app=WebAppInfo(url=button_url),
+                )
+            ]
+        )
+    return InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
 
 
 class BotNotificationSender:
@@ -31,10 +73,9 @@ class BotNotificationSender:
         text: str,
         button_text: str | None,
         button_url: str | None,
+        buttons: list[list[dict[str, str]]] | None = None,
     ) -> None:
-        reply_markup = None
-        if button_url:
-            reply_markup = listing_keyboard(button_text or "Открыть объявление", button_url)
+        reply_markup = build_inline_keyboard(buttons, button_text, button_url)
         try:
             await self.bot.send_message(
                 chat_id=chat_id,

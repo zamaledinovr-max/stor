@@ -18,6 +18,7 @@ from app.core.enums import (
     ListingCondition,
     ListingKind,
     ListingStatus,
+    ModerationStatus,
     allowed_statuses,
 )
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
@@ -99,15 +100,27 @@ def get_listing(session: Session, listing_id: int) -> Listing:
     return listing
 
 
-def get_listing_for_viewer(session: Session, viewer_telegram_id: int, listing_id: int) -> Listing:
+def get_listing_for_viewer(
+    session: Session,
+    viewer_telegram_id: int,
+    listing_id: int,
+    *,
+    can_view_unpublished: bool = False,
+) -> Listing:
     """Return a listing visible to the viewer.
 
-    Finished listings of other users are reported as missing so that the API
-    does not leak private advertisement identifiers.
+    Unpublished (pending/rejected) and finished listings of other users are
+    reported as missing so that the API does not leak private advertisement
+    identifiers. Administrators may open any listing to review it.
     """
 
     listing = get_listing(session, listing_id)
-    if listing.owner_telegram_id != viewer_telegram_id and listing.status != ListingStatus.ACTIVE.value:
+    if listing.owner_telegram_id == viewer_telegram_id or can_view_unpublished:
+        return listing
+    if (
+        listing.status != ListingStatus.ACTIVE.value
+        or listing.moderation_status != ModerationStatus.APPROVED.value
+    ):
         raise NotFoundError("Объявление не найдено.")
     return listing
 
@@ -131,7 +144,11 @@ def create_listing(
     owner: User,
     payload: CreateListingIn,
 ) -> Listing:
-    """Persist a new active listing and enqueue admin notifications atomically."""
+    """Persist a new listing and enqueue admin notifications atomically.
+
+    When moderation is enabled the listing is stored with `pending` and stays
+    invisible in the catalog until an administrator approves it.
+    """
 
     if settings.listing_rules and not payload.rules_accepted:
         raise ValidationAppError(
@@ -147,6 +164,12 @@ def create_listing(
         payload.price_negotiable,
     )
 
+    moderation_status = (
+        ModerationStatus.PENDING.value
+        if settings.listing_moderation_enabled
+        else ModerationStatus.APPROVED.value
+    )
+
     now = utcnow()
     listing = Listing(
         owner_telegram_id=owner.telegram_id,
@@ -160,6 +183,8 @@ def create_listing(
         currency="RUB",
         district=payload.district,
         status=ListingStatus.ACTIVE.value,
+        moderation_status=moderation_status,
+        moderation_attempt=1,
         created_at=now,
         updated_at=now,
     )
@@ -182,11 +207,16 @@ def create_listing(
 
 def update_listing(
     session: Session,
+    settings: Settings,
     owner: User,
     listing_id: int,
     payload: UpdateListingIn,
 ) -> Listing:
-    """Update the owner's listing fields without changing its type."""
+    """Update the owner's listing fields without changing its type.
+
+    Editing a rejected listing resubmits it for review automatically, so the
+    owner can fix the problem and wait for a new decision without extra steps.
+    """
 
     listing = get_owned_listing(session, owner.telegram_id, listing_id)
     validate_listing_content(
@@ -206,18 +236,40 @@ def update_listing(
     listing.district = payload.district
     listing.updated_at = utcnow()
 
+    resubmitted = (
+        settings.listing_moderation_enabled
+        and listing.moderation_status == ModerationStatus.REJECTED.value
+    )
+    if resubmitted:
+        listing.moderation_status = ModerationStatus.PENDING.value
+        listing.moderation_attempt += 1
+        listing.moderation_reason = None
+
     audit_service.record_event(
         session,
         "listing_updated",
         actor_telegram_id=owner.telegram_id,
         listing_id=listing.id,
     )
+    if resubmitted:
+        audit_service.record_event(
+            session,
+            "listing_resubmitted",
+            actor_telegram_id=owner.telegram_id,
+            listing_id=listing.id,
+            from_status=ModerationStatus.REJECTED.value,
+            to_status=ModerationStatus.PENDING.value,
+        )
+        notification_service.enqueue_listing_resubmitted(session, settings, listing)
     session.commit()
     return listing
 
 
 def list_catalog(session: Session, filters: CatalogFilters) -> tuple[list[Listing], int]:
-    conditions = [Listing.status == ListingStatus.ACTIVE.value]
+    conditions = [
+        Listing.status == ListingStatus.ACTIVE.value,
+        Listing.moderation_status == ModerationStatus.APPROVED.value,
+    ]
 
     if filters.kind is not None:
         conditions.append(Listing.kind == filters.kind.value)
@@ -315,6 +367,75 @@ def change_status(
         listing_id=listing.id,
         from_status=previous_status,
         to_status=listing.status,
+    )
+    session.commit()
+    return listing
+
+
+def approve_listing(
+    session: Session,
+    listing_id: int,
+    actor_telegram_id: int,
+) -> Listing:
+    """Publish a listing after an administrator reviewed it. Idempotent."""
+
+    listing = get_listing(session, listing_id)
+    if listing.moderation_status == ModerationStatus.APPROVED.value:
+        return listing
+
+    previous = listing.moderation_status
+    listing.moderation_status = ModerationStatus.APPROVED.value
+    listing.moderation_reason = None
+    listing.updated_at = utcnow()
+    audit_service.record_event(
+        session,
+        "listing_moderated",
+        actor_telegram_id=actor_telegram_id,
+        listing_id=listing.id,
+        from_status=previous,
+        to_status=ModerationStatus.APPROVED.value,
+    )
+    notification_service.enqueue_author_decision(session, listing, approved=True)
+    session.commit()
+    return listing
+
+
+def reject_listing(
+    session: Session,
+    listing_id: int,
+    actor_telegram_id: int,
+    reason: str,
+) -> Listing:
+    """Reject a listing with an administrator-provided reason. Idempotent."""
+
+    cleaned_reason = " ".join((reason or "").split())[:300]
+    if len(cleaned_reason) < 2:
+        raise ValidationAppError(
+            "Укажите причину отклонения (минимум 2 символа).",
+            code="reason_required",
+        )
+
+    listing = get_listing(session, listing_id)
+    if (
+        listing.moderation_status == ModerationStatus.REJECTED.value
+        and listing.moderation_reason == cleaned_reason
+    ):
+        return listing
+
+    previous = listing.moderation_status
+    listing.moderation_status = ModerationStatus.REJECTED.value
+    listing.moderation_reason = cleaned_reason
+    listing.updated_at = utcnow()
+    audit_service.record_event(
+        session,
+        "listing_moderated",
+        actor_telegram_id=actor_telegram_id,
+        listing_id=listing.id,
+        from_status=previous,
+        to_status=ModerationStatus.REJECTED.value,
+    )
+    notification_service.enqueue_author_decision(
+        session, listing, approved=False, reason=cleaned_reason
     )
     session.commit()
     return listing

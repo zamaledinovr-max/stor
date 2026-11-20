@@ -21,7 +21,7 @@ class RecordingSender:
         self.error = error
         self.messages: list[dict] = []
 
-    async def send(self, chat_id, text, button_text, button_url) -> None:
+    async def send(self, chat_id, text, button_text, button_url, buttons=None) -> None:
         if self.error is not None:
             raise self.error
         self.messages.append(
@@ -30,6 +30,7 @@ class RecordingSender:
                 "text": text,
                 "button_text": button_text,
                 "button_url": button_url,
+                "buttons": buttons,
             }
         )
 
