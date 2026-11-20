@@ -181,10 +181,17 @@ class StatusUpdateIn(BaseModel):
 
 
 class ListingSummaryOut(BaseModel):
+    """Card shown in the catalog.
+
+    `description` is included so the Mini App can show a short preview under
+    the photo without an extra request per card.
+    """
+
     id: int
     kind: ListingKind
     kind_label: str
     title: str
+    description: str | None
     price: PriceOut | None
     price_negotiable: bool
     condition: ListingCondition | None
@@ -200,7 +207,6 @@ class ListingSummaryOut(BaseModel):
 
 
 class ListingDetailOut(ListingSummaryOut):
-    description: str | None
     updated_at: datetime
     photos: list[PhotoOut]
     owner_username: str | None

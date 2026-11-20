@@ -139,3 +139,21 @@ def test_inverted_price_range_is_rejected(client, auth_headers):
 def test_invalid_sort_value_is_rejected(client, auth_headers):
     response = _catalog(client, auth_headers, sort="popular")
     assert response.status_code == 422
+
+
+def test_catalog_card_includes_description(client, create_listing, auth_headers):
+    created = create_listing(
+        1001,
+        title="Xros Pro",
+        description="Комплект: чехол и два картриджа.",
+    ).json()
+    payload = _catalog(client, auth_headers).json()
+    item = next(item for item in payload["items"] if item["id"] == created["id"])
+    assert item["description"] == "Комплект: чехол и два картриджа."
+
+
+def test_catalog_card_description_is_null_when_not_set(client, create_listing, auth_headers):
+    created = create_listing(1001, title="Без описания", description=None).json()
+    payload = _catalog(client, auth_headers).json()
+    item = next(item for item in payload["items"] if item["id"] == created["id"])
+    assert item["description"] is None

@@ -92,6 +92,10 @@ export function createCatalogView({ api, getMeta, openListing, openLink, notify 
       el("h3", { class: "card__title", text: item.title }),
       el("div", { class: "card__price", text: formatListingPrice(item) }),
     ]);
+    const description = (item.description || "").trim();
+    if (description) {
+      body.appendChild(el("div", { class: "card__description", text: description }));
+    }
     if (item.condition_label) {
       body.appendChild(
         el("div", { class: "card__meta" }, [el("span", { text: item.condition_label })]),

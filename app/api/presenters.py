@@ -70,6 +70,7 @@ def listing_summary(listing: Listing, settings: Settings, viewer_id: int) -> Lis
         kind=ListingKind(listing.kind),
         kind_label=KIND_LABELS[listing.kind],
         title=listing.title,
+        description=listing.description,
         price=price_out(listing),
         price_negotiable=listing.price_negotiable,
         condition=condition,
@@ -95,7 +96,6 @@ def listing_detail(listing: Listing, settings: Settings, viewer_id: int) -> List
     ]
     return ListingDetailOut(
         **summary.model_dump(),
-        description=listing.description,
         updated_at=as_utc(listing.updated_at),
         photos=[photo_out(photo, settings) for photo in listing.photos],
         owner_username=owner.username if owner else None,
