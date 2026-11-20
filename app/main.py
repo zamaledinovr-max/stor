@@ -159,6 +159,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         response = await call_next(request)
         for name, value in security_headers.items():
             response.headers.setdefault(name, value)
+        # Frontend assets are served without hashed names: revalidate them on
+        # every load so a deploy is visible after the Mini App is reopened.
+        static_asset = path.startswith(("/js/", "/css/", "/assets/"))
+        if path == "/" or path.endswith(".html") or static_asset:
+            response.headers["Cache-Control"] = "no-cache"
         return response
 
     if app_settings.cors_origins:
