@@ -14,13 +14,14 @@ class Sender:
     def __init__(self) -> None:
         self.messages = []
 
-    async def send(self, chat_id, text, button_text, button_url) -> None:
+    async def send(self, chat_id, text, button_text, button_url, buttons=None) -> None:
         self.messages.append(
             {
                 "chat_id": chat_id,
                 "text": text,
                 "button_text": button_text,
                 "button_url": button_url,
+                "buttons": buttons,
             }
         )
 
