@@ -38,7 +38,7 @@ class Listing(Base):
         CheckConstraint("kind IN ('sell', 'buy')", name="ck_listings_kind"),
         CheckConstraint("status IN ('active', 'sold', 'closed')", name="ck_listings_status"),
         CheckConstraint(
-            "moderation_status IN ('pending', 'approved', 'rejected')",
+            "moderation_status IN ('pending', 'approved', 'rejected', 'removed')",
             name="ck_listings_moderation_status",
         ),
         CheckConstraint(

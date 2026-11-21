@@ -126,6 +126,25 @@ def _load_recipients(session_factory: sessionmaker[Session]) -> list[int]:
         return [int(value) for value in session.scalars(select(User.telegram_id)).all()]
 
 
+def _remove_listing(
+    session_factory: sessionmaker[Session],
+    listing_id: int,
+    actor: int,
+    reason: str,
+):
+    with session_factory() as session:
+        return listing_service.remove_listing(session, listing_id, actor, reason)
+
+
+def _restore_listing(
+    session_factory: sessionmaker[Session],
+    listing_id: int,
+    actor: int,
+):
+    with session_factory() as session:
+        return listing_service.restore_listing(session, listing_id, actor)
+
+
 def _save_ad(
     session_factory: sessionmaker[Session],
     settings: Settings,
@@ -335,6 +354,63 @@ def build_router(settings: Settings, session_factory: sessionmaker[Session]) -> 
     @router.message(Command("stats"))
     async def on_stats(message: Message) -> None:
         await send_stats(message, settings, session_factory)
+
+    @router.message(Command("hide"))
+    async def on_hide(message: Message) -> None:
+        if not _is_private_admin(settings, message):
+            await message.answer("⛔ Эта команда доступна только администратору.")
+            return
+        parts = (message.text or "").split(maxsplit=2)
+        if len(parts) < 3 or not parts[1].isdigit():
+            await message.answer(
+                "Формат: <code>/hide НОМЕР причина</code>\n"
+                "Номер объявления есть в уведомлении о публикации. "
+                "Пример: <code>/hide 12 Мошенничество</code>"
+            )
+            return
+        listing_id = int(parts[1])
+        reason = parts[2].strip()[:REJECT_REASON_LIMIT]
+        try:
+            await asyncio.to_thread(
+                _remove_listing,
+                session_factory,
+                listing_id,
+                message.from_user.id,
+                reason,
+            )
+        except AppError as exc:
+            await message.answer(str(exc) or "Не удалось снять объявление.")
+            return
+        except Exception:
+            logger.exception("Failed to remove listing %s", listing_id)
+            await message.answer("Ошибка сервера. Попробуйте позже.")
+            return
+        await message.answer(
+            f"⛔ Объявление №{listing_id} снято с публикации. Автору отправлена причина."
+        )
+
+    @router.message(Command("show"))
+    async def on_show(message: Message) -> None:
+        if not _is_private_admin(settings, message):
+            await message.answer("⛔ Эта команда доступна только администратору.")
+            return
+        parts = (message.text or "").split(maxsplit=1)
+        if len(parts) < 2 or not parts[1].strip().isdigit():
+            await message.answer("Формат: <code>/show НОМЕР</code>")
+            return
+        listing_id = int(parts[1].strip())
+        try:
+            await asyncio.to_thread(
+                _restore_listing, session_factory, listing_id, message.from_user.id
+            )
+        except AppError as exc:
+            await message.answer(str(exc) or "Не удалось вернуть объявление.")
+            return
+        except Exception:
+            logger.exception("Failed to restore listing %s", listing_id)
+            await message.answer("Ошибка сервера. Попробуйте позже.")
+            return
+        await message.answer(f"✅ Объявление №{listing_id} возвращено в каталог.")
 
     @router.message(Command("cancel"))
     async def on_cancel(message: Message, state: FSMContext) -> None:

@@ -131,6 +131,14 @@ export class ApiClient {
     });
   }
 
+  moderateListing(id, action, reason) {
+    const body = reason ? { action, reason } : { action };
+    return this.request(`/api/listings/${encodeURIComponent(id)}/moderation`, {
+      method: "POST",
+      body,
+    });
+  }
+
   updateListing(id, payload) {
     return this.request(`/api/listings/${encodeURIComponent(id)}`, {
       method: "PUT",

@@ -107,6 +107,7 @@ function buildViews() {
   detail = createDetailView({
     api,
     getMeta: () => state.meta,
+    getMe: () => state.me,
     openSupport,
     notify,
     onChanged: refreshOwnData,

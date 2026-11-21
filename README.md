@@ -65,6 +65,9 @@
   подпись кнопки, фото), `/dadd` — удаление баннера;
 - `/pres` — рассылка текста и/или фото всем пользователям бота с подтверждением
   и отчётом о доставке; тоже только для администраторов;
+- `/hide НОМЕР причина` — снять опубликованное объявление с публикации (автор
+  получает причину), `/show НОМЕР` — вернуть в каталог. Те же действия есть
+  кнопками в карточке объявления для администратора;
 - уведомления администраторам о каждом новом объявлении и новой жалобе через
   transactional outbox: запись создаётся в одной транзакции с событием,
   отправка повторяется с backoff, дубли исключены (`dedupe_key` + статус строки).
@@ -127,7 +130,7 @@ telegram-device-market/
 │   └── js/
 │       ├── api.js  telegram.js  format.js  dom.js  app.js
 │       └── views/ catalog.js  create.js  account.js  detail.js
-├── migrations/                 # Alembic env + ревизии 0001–0004
+├── migrations/                 # Alembic env + ревизии 0001–0005
 ├── scripts/dev_init_data.py    # подписанный initData для локальной отладки
 ├── scripts/start_all.sh        # миграции + API + бот в одном контейнере
 ├── scripts/init_git.ps1        # инициализация Git и push одной командой
@@ -378,6 +381,7 @@ Authorization: tma <initData>
 | PUT | `/api/listings/{id}` | только владелец | обновление названия, описания, состояния, цены, района. Тип объявления не меняется. 200; 401, 403, 404, 422, 429 |
 | POST | `/api/listings/{id}/complaints` | авторизован + rate limit | `{"reason": "fraud", "comment": "..."}`; 201 `ComplaintOut`. 401, 404, 422 (`own_listing`, `validation_error`), 429 |
 | PATCH | `/api/listings/{id}/status` | только владелец | `{"status": "sold"|"closed"|"active"}`; неверная пара тип/статус → 422 `invalid_status_for_kind`; чужое → 403. 401, 403, 404 |
+| POST | `/api/listings/{id}/moderation` | только админ | `{"action": "remove", "reason"}` снимает объявление с публикации (причина обязательна), `{"action": "restore"}` возвращает в каталог. 200; 401, 403, 404, 422 |
 | POST | `/api/listings/{id}/photos` | только владелец | multipart `file`; 201 `PhotoOut`. 401, 403, 404, 409 (`photo_limit_reached`), 413, 422, 429 |
 | DELETE | `/api/listings/{id}/photos/{photo_id}` | только владелец | 204; 401, 403, 404 |
 | GET | `/api/photos/{id}/file?exp=&sig=` | подписанная ссылка | байты изображения, `Cache-Control`, `nosniff`. 403 при истёкшей/неверной подписи, 404 |

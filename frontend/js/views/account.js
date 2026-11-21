@@ -6,6 +6,7 @@ import { formatListingPrice, timeAgo } from "../format.js";
 const MODERATION_GROUPS = [
   { key: "pending", title: "На проверке" },
   { key: "rejected", title: "Отклонённые" },
+  { key: "removed", title: "Снятые с публикации" },
 ];
 
 const GROUPS = [

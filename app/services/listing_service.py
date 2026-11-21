@@ -460,6 +460,77 @@ def reject_listing(
     return listing
 
 
+def remove_listing(
+    session: Session,
+    listing_id: int,
+    actor_telegram_id: int,
+    reason: str,
+) -> Listing:
+    """Take an active listing down.
+
+    Unlike a rejection, the owner cannot resubmit it by editing: only an
+    administrator can return it to the catalog.
+    """
+
+    cleaned_reason = " ".join((reason or "").split())[:300]
+    if len(cleaned_reason) < 2:
+        raise ValidationAppError(
+            "Укажите причину снятия (минимум 2 символа).",
+            code="reason_required",
+        )
+
+    listing = get_listing(session, listing_id)
+    if (
+        listing.moderation_status == ModerationStatus.REMOVED.value
+        and listing.moderation_reason == cleaned_reason
+    ):
+        return listing
+
+    previous = listing.moderation_status
+    listing.moderation_status = ModerationStatus.REMOVED.value
+    listing.moderation_reason = cleaned_reason
+    listing.updated_at = utcnow()
+    audit_service.record_event(
+        session,
+        "listing_removed",
+        actor_telegram_id=actor_telegram_id,
+        listing_id=listing.id,
+        from_status=previous,
+        to_status=ModerationStatus.REMOVED.value,
+    )
+    notification_service.enqueue_author_removed(session, listing, cleaned_reason)
+    session.commit()
+    return listing
+
+
+def restore_listing(
+    session: Session,
+    listing_id: int,
+    actor_telegram_id: int,
+) -> Listing:
+    """Return a listing to the catalog. Idempotent."""
+
+    listing = get_listing(session, listing_id)
+    if listing.moderation_status == ModerationStatus.APPROVED.value:
+        return listing
+
+    previous = listing.moderation_status
+    listing.moderation_status = ModerationStatus.APPROVED.value
+    listing.moderation_reason = None
+    listing.updated_at = utcnow()
+    audit_service.record_event(
+        session,
+        "listing_restored",
+        actor_telegram_id=actor_telegram_id,
+        listing_id=listing.id,
+        from_status=previous,
+        to_status=ModerationStatus.APPROVED.value,
+    )
+    notification_service.enqueue_author_decision(session, listing, approved=True)
+    session.commit()
+    return listing
+
+
 def count_photos(session: Session, listing_id: int) -> int:
     return int(
         session.scalar(

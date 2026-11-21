@@ -38,6 +38,8 @@ ADMIN_COMMANDS = [
     BotCommand(command="add", description="Добавить рекламу"),
     BotCommand(command="dadd", description="Удалить рекламу"),
     BotCommand(command="pres", description="Рассылка пользователям"),
+    BotCommand(command="hide", description="Снять объявление с публикации"),
+    BotCommand(command="show", description="Вернуть объявление в каталог"),
 ]
 
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -178,6 +178,15 @@ class StatusUpdateIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     status: ListingStatus
+
+
+class ModerationActionIn(BaseModel):
+    """Administrator action for a listing that already exists."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    action: Literal["remove", "restore"]
+    reason: Annotated[str | None, Field(max_length=300)] = None
 
 
 class ListingSummaryOut(BaseModel):

@@ -4,7 +4,15 @@ import { clear, el, show } from "../dom.js";
 import { formatCount, formatDateTime, formatListingPrice, timeAgo } from "../format.js";
 import { openLink } from "../telegram.js";
 
-export function createDetailView({ api, getMeta, openSupport, notify, onChanged, onEdit }) {
+export function createDetailView({
+  api,
+  getMeta,
+  getMe,
+  openSupport,
+  notify,
+  onChanged,
+  onEdit,
+}) {
   const sheet = document.getElementById("detail-sheet");
   const body = document.getElementById("detail-body");
   const closeButton = document.getElementById("detail-close");
@@ -222,6 +230,65 @@ export function createDetailView({ api, getMeta, openSupport, notify, onChanged,
     return actions;
   }
 
+  async function moderate(listing, action, reason, button) {
+    if (button) button.disabled = true;
+    try {
+      current = await api.moderateListing(listing.id, action, reason);
+      notify(
+        action === "remove"
+          ? "Объявление снято с публикации."
+          : "Объявление возвращено в каталог.",
+      );
+      render();
+      onChanged?.();
+    } catch (error) {
+      notify(error.message || "Не удалось выполнить действие.", true);
+      if (button) button.disabled = false;
+    }
+  }
+
+  function renderAdminActions(listing) {
+    if (!getMe?.()?.is_admin) return null;
+
+    if (listing.moderation_status === "removed") {
+      return el("div", { class: "detail__admin" }, [
+        el("div", { class: "detail__admin-title", text: "Модерация" }),
+        el("button", {
+          class: "button button--primary",
+          type: "button",
+          text: "Вернуть в каталог",
+          onclick: (event) => moderate(listing, "restore", null, event.currentTarget),
+        }),
+      ]);
+    }
+
+    if (listing.moderation_status !== "approved") return null;
+
+    const reason = el("textarea", {
+      class: "input input--area",
+      rows: 2,
+      maxlength: 300,
+      placeholder: "Причина снятия (обязательно)",
+    });
+    const submit = el("button", {
+      class: "button button--primary",
+      type: "button",
+      text: "Снять с публикации",
+      disabled: true,
+      onclick: (event) =>
+        moderate(listing, "remove", reason.value.trim(), event.currentTarget),
+    });
+    reason.addEventListener("input", () => {
+      submit.disabled = reason.value.trim().length < 2;
+    });
+
+    return el("div", { class: "detail__admin" }, [
+      el("div", { class: "detail__admin-title", text: "Модерация" }),
+      reason,
+      submit,
+    ]);
+  }
+
   function render() {
     const listing = current;
     clear(body);
@@ -312,6 +379,8 @@ export function createDetailView({ api, getMeta, openSupport, notify, onChanged,
     }
 
     body.appendChild(renderActions(listing));
+    const adminActions = renderAdminActions(listing);
+    if (adminActions) body.appendChild(adminActions);
   }
 
   function renderState(message, isError) {

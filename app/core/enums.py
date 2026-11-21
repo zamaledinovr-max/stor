@@ -33,6 +33,7 @@ class ModerationStatus(str, Enum):
     PENDING = "pending"
     APPROVED = "approved"
     REJECTED = "rejected"
+    REMOVED = "removed"
 
 
 class ListingCondition(str, Enum):
@@ -81,6 +82,7 @@ MODERATION_LABELS: dict[str, str] = {
     ModerationStatus.PENDING.value: "На проверке",
     ModerationStatus.APPROVED.value: "Опубликовано",
     ModerationStatus.REJECTED.value: "Отклонено",
+    ModerationStatus.REMOVED.value: "Снято модератором",
 }
 
 CONDITION_LABELS: dict[str, str] = {

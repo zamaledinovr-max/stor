@@ -19,11 +19,13 @@ from app.api.deps import (
 from app.api.presenters import listing_detail, listing_summary, photo_out
 from app.core.config import Settings
 from app.core.enums import ListingCondition, ListingKind
+from app.core.errors import ForbiddenError
 from app.schemas.common import ErrorResponse, PhotoOut, ValidationErrorResponse
 from app.schemas.listing import (
     CreateListingIn,
     ListingDetailOut,
     ListingListOut,
+    ModerationActionIn,
     StatusUpdateIn,
     UpdateListingIn,
 )
@@ -171,6 +173,34 @@ def update_listing_status(
     listing_id: int = Path(ge=1),
 ) -> ListingDetailOut:
     listing_service.change_status(session, auth.user, listing_id, payload.status)
+    stored = listing_service.get_listing(session, listing_id)
+    return listing_detail(stored, settings, auth.telegram_id)
+
+
+@router.post(
+    "/listings/{listing_id}/moderation",
+    response_model=ListingDetailOut,
+    summary="Снять объявление с публикации или вернуть в каталог (админ)",
+    responses={
+        **_LISTING_ERRORS,
+        403: {"model": ErrorResponse, "description": "Действие доступно только администратору"},
+    },
+)
+def moderate_listing(
+    payload: ModerationActionIn,
+    auth: AuthContext = Depends(get_auth_context),
+    session: Session = Depends(get_session),
+    settings: Settings = Depends(get_app_settings),
+    listing_id: int = Path(ge=1),
+) -> ListingDetailOut:
+    if not auth.is_admin:
+        raise ForbiddenError("Действие доступно только администратору.")
+    if payload.action == "remove":
+        listing_service.remove_listing(
+            session, listing_id, auth.telegram_id, payload.reason or ""
+        )
+    else:
+        listing_service.restore_listing(session, listing_id, auth.telegram_id)
     stored = listing_service.get_listing(session, listing_id)
     return listing_detail(stored, settings, auth.telegram_id)
 

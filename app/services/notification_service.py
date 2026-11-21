@@ -234,6 +234,34 @@ def enqueue_author_decision(
     return _enqueue_for_chat(session, listing.owner_telegram_id, dedupe_key, payload)
 
 
+def build_author_removed_text(listing: Listing, reason: str | None) -> str:
+    reason_text = escape((reason or "").strip() or "не указана")
+    return (
+        f"⛔ Ваше объявление №{listing.id} снято с публикации.\n"
+        f"{escape(listing.title)}\n"
+        f"Причина: {reason_text}\n\n"
+        "Если считаете это ошибкой, напишите в поддержку."
+    )
+
+
+def enqueue_author_removed(
+    session: Session, listing: Listing, reason: str | None
+) -> NotificationOutbox:
+    """Tell the owner that a moderator took the listing down (no commit here)."""
+
+    now = utcnow()
+    dedupe_key = (
+        f"listing_removed:{listing.id}:{listing.moderation_attempt}:"
+        f"{int(now.timestamp() * 1_000_000)}"
+    )
+    payload = {
+        "text": build_author_removed_text(listing, reason),
+        "listing_id": listing.id,
+        "moderation": listing.moderation_status,
+    }
+    return _enqueue_for_chat(session, listing.owner_telegram_id, dedupe_key, payload)
+
+
 def build_complaint_text(complaint: ListingComplaint, listing: Listing) -> str:
     reason = COMPLAINT_REASON_LABELS.get(complaint.reason, complaint.reason)
     text = (
