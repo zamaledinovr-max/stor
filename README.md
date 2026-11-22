@@ -42,6 +42,8 @@
 ### Аккаунт
 - профиль Telegram, признак администратора;
 - свои объявления, сгруппированные по статусам;
+- избранное: сердечко в карточке объявления (серое → красное) и отдельный
+  раздел «Избранное» во вкладке «Аккаунт» с возможностью убрать объявление;
 - смена статуса: «Продам» → `active`/`sold`, «Куплю» → `active`/`closed`,
   повторное нажатие идемпотентно;
 - редактирование своих объявлений, включая фото;
@@ -118,7 +120,7 @@ telegram-device-market/
 │   │   ├── security.py         # initData
 │   │   └── signing.py          # подписанные URL фотографий
 │   ├── db/                     # Base, engine, session factory
-│   ├── models/                 # User, Listing, ListingPhoto, Ad, AuditEvent, NotificationOutbox
+│   ├── models/                 # User, Listing, ListingPhoto, Ad, Favorite, AuditEvent, NotificationOutbox
 │   ├── schemas/                # Pydantic-схемы запросов/ответов
 │   ├── services/               # бизнес-логика и проверки прав
 │   ├── storage/                # Protocol + LocalStorage + S3Storage
@@ -130,7 +132,7 @@ telegram-device-market/
 │   └── js/
 │       ├── api.js  telegram.js  format.js  dom.js  app.js
 │       └── views/ catalog.js  create.js  account.js  detail.js
-├── migrations/                 # Alembic env + ревизии 0001–0005
+├── migrations/                 # Alembic env + ревизии 0001–0006
 ├── scripts/dev_init_data.py    # подписанный initData для локальной отладки
 ├── scripts/start_all.sh        # миграции + API + бот в одном контейнере
 ├── scripts/init_git.ps1        # инициализация Git и push одной командой
@@ -374,6 +376,9 @@ Authorization: tma <initData>
 | GET | `/api/me` | авторизован | текущий пользователь, `is_admin`, признак настроенной поддержки. 401 |
 | GET | `/api/meta` | авторизован | районы, типы, состояния, статусы, лимиты фото, поддержка, реклама, правила, причины жалоб. 401 |
 | GET | `/api/me/listings` | авторизован | свои объявления + счётчики по статусам. 401 |
+| GET | `/api/me/favorites` | авторизован | избранные объявления + `total`. 401 |
+| PUT | `/api/listings/{id}/favorite` | авторизован + rate limit | добавить в избранное; 200 `{"is_favorite": true}`. 401, 404, 429 |
+| DELETE | `/api/listings/{id}/favorite` | авторизован + rate limit | убрать из избранного; 200 `{"is_favorite": false}`. 401, 429 |
 | GET | `/api/listings` | авторизован | каталог только активных. Параметры: `q`, `kind`, `district`, `condition`, `min_price`, `max_price`, `sort` (`newest`/`price_asc`/`price_desc`), `limit` (1–50), `offset`. Каждая карточка содержит `description` — превью показывается под фото. 401, 422 |
 | POST | `/api/listings` | авторизован + rate limit | создание. Тело: `kind`, `title`, `description?`, `condition?`, `condition_text?`, `price_amount?`, `price_negotiable?`, `district`, `rules_accepted?`. 201; 401, 409, 422 (`rules_not_accepted`, `validation_error`), 429 |
 | GET | `/api/listings/{id}` | авторизован | активное объявление видят все; неактивное — только владелец (иначе 404). Открытие увеличивает `views_count`. 401, 404 |

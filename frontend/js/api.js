@@ -139,6 +139,22 @@ export class ApiClient {
     });
   }
 
+  addFavorite(id) {
+    return this.request(`/api/listings/${encodeURIComponent(id)}/favorite`, {
+      method: "PUT",
+    });
+  }
+
+  removeFavorite(id) {
+    return this.request(`/api/listings/${encodeURIComponent(id)}/favorite`, {
+      method: "DELETE",
+    });
+  }
+
+  getFavorites() {
+    return this.request("/api/me/favorites");
+  }
+
   updateListing(id, payload) {
     return this.request(`/api/listings/${encodeURIComponent(id)}`, {
       method: "PUT",

@@ -22,6 +22,7 @@ from app.models import Listing, ListingComplaint, ListingPhoto, User
 from app.schemas.common import MeOut, OptionOut, PhotoOut, PriceOut, UserOut
 from app.schemas.complaint import ComplaintOut
 from app.schemas.listing import (
+    FavoriteListOut,
     ListingDetailOut,
     ListingSummaryOut,
     MyListingsOut,
@@ -64,7 +65,13 @@ def complaint_out(complaint: ListingComplaint) -> ComplaintOut:
     return ComplaintOut.model_validate(complaint)
 
 
-def listing_summary(listing: Listing, settings: Settings, viewer_id: int) -> ListingSummaryOut:
+def listing_summary(
+    listing: Listing,
+    settings: Settings,
+    viewer_id: int,
+    *,
+    is_favorite: bool = False,
+) -> ListingSummaryOut:
     photos = list(listing.photos)
     condition = ListingCondition(listing.condition) if listing.condition else None
     return ListingSummaryOut(
@@ -91,12 +98,21 @@ def listing_summary(listing: Listing, settings: Settings, viewer_id: int) -> Lis
         views_count=listing.views_count,
         cover_photo=photo_out(photos[0], settings) if photos else None,
         photo_count=len(photos),
+        is_favorite=is_favorite,
         is_owner=listing.owner_telegram_id == viewer_id,
     )
 
 
-def listing_detail(listing: Listing, settings: Settings, viewer_id: int) -> ListingDetailOut:
-    summary = listing_summary(listing, settings, viewer_id)
+def listing_detail(
+    listing: Listing,
+    settings: Settings,
+    viewer_id: int,
+    *,
+    is_favorite: bool = False,
+) -> ListingDetailOut:
+    summary = listing_summary(
+        listing, settings, viewer_id, is_favorite=is_favorite
+    )
     owner = listing.owner
     available = [
         OptionOut(value=status, label=STATUS_LABELS[status])
@@ -128,4 +144,16 @@ def my_listings_out(
         total=len(listings),
         counts=counts,
         status_labels=dict(STATUS_LABELS),
+    )
+
+
+def favorites_out(
+    listings: list[Listing], settings: Settings, viewer_id: int
+) -> FavoriteListOut:
+    return FavoriteListOut(
+        items=[
+            listing_summary(listing, settings, viewer_id, is_favorite=True)
+            for listing in listings
+        ],
+        total=len(listings),
     )

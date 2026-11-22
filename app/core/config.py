@@ -109,6 +109,7 @@ class Settings(BaseSettings):
     rate_limit_upload_photo_per_hour: int = Field(default=60, ge=0)
     rate_limit_status_change_per_hour: int = Field(default=60, ge=0)
     rate_limit_complaint_per_hour: int = Field(default=20, ge=0)
+    rate_limit_favorite_per_hour: int = Field(default=120, ge=0)
 
     notifications_poll_interval_seconds: float = Field(default=2.0, ge=1.0, le=300.0)
     notifications_batch_size: int = Field(default=20, ge=1, le=200)

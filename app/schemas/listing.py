@@ -214,6 +214,7 @@ class ListingSummaryOut(BaseModel):
     moderation_reason: str | None
     created_at: datetime
     views_count: int
+    is_favorite: bool = False
     cover_photo: PhotoOut | None
     photo_count: int
     is_owner: bool
@@ -240,3 +241,12 @@ class MyListingsOut(BaseModel):
     total: int
     counts: dict[str, int]
     status_labels: dict[str, str]
+
+
+class FavoriteStateOut(BaseModel):
+    is_favorite: bool
+
+
+class FavoriteListOut(BaseModel):
+    items: list[ListingSummaryOut]
+    total: int

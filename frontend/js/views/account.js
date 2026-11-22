@@ -18,8 +18,11 @@ const GROUPS = [
 export function createAccountView({ api, getMe, openListing, openCreate, openEdit, notify }) {
   const profileNode = document.getElementById("account-card");
   const groupsNode = document.getElementById("account-groups");
+  const favoritesNode = document.getElementById("account-favorites");
   let data = null;
   let loading = false;
+  let favorites = null;
+  let favoritesError = null;
 
   function renderProfile() {
     clear(profileNode);
@@ -69,15 +72,22 @@ export function createAccountView({ api, getMe, openListing, openCreate, openEdi
     });
   }
 
-  function accountItem(item) {
-    const thumb = item.cover_photo?.url
+  function itemThumb(item) {
+    return item.cover_photo?.url
       ? el("img", {
           class: "account-item__thumb",
           src: item.cover_photo.url,
           alt: "",
           loading: "lazy",
         })
-      : el("div", { class: "account-item__thumb account-item__thumb--empty", text: "Нет фото" });
+      : el("div", {
+          class: "account-item__thumb account-item__thumb--empty",
+          text: "Нет фото",
+        });
+  }
+
+  function accountItem(item) {
+    const thumb = itemThumb(item);
 
     const approved = item.moderation_status === "approved";
     const stateLabel = approved ? item.status_label : item.moderation_label;
@@ -113,6 +123,89 @@ export function createAccountView({ api, getMe, openListing, openCreate, openEdi
     body.appendChild(el("div", { class: "account-item__actions" }, actions));
 
     return el("div", { class: "account-item" }, [thumb, body]);
+  }
+
+  function favoriteItem(item) {
+    const stateLabel =
+      item.moderation_status === "approved" ? item.status_label : item.moderation_label;
+    const body = el("div", { class: "account-item__body" }, [
+      el("div", { class: "account-item__title", text: item.title }),
+      el("div", { class: "muted", text: `${stateLabel} · ${formatListingPrice(item)}` }),
+      el("div", { class: "muted", text: `${item.district} · ${timeAgo(item.created_at)}` }),
+      el("div", { class: "account-item__actions" }, [
+        el("button", {
+          class: "chip",
+          type: "button",
+          text: "Открыть",
+          onclick: () => openListing(item.id),
+        }),
+        el("button", {
+          class: "chip",
+          type: "button",
+          text: "Убрать",
+          onclick: (event) => removeFavorite(item.id, event.currentTarget),
+        }),
+      ]),
+    ]);
+    return el("div", { class: "account-item" }, [itemThumb(item), body]);
+  }
+
+  async function removeFavorite(id, button) {
+    button.disabled = true;
+    try {
+      await api.removeFavorite(id);
+      notify("Убрано из избранного.");
+      await refreshFavorites();
+    } catch (error) {
+      notify(error.message || "Не удалось убрать из избранного.", true);
+      button.disabled = false;
+    }
+  }
+
+  function renderFavorites() {
+    if (!favoritesNode) return;
+    clear(favoritesNode);
+    if (favoritesError) {
+      favoritesNode.appendChild(
+        el("p", {
+          class: "account-group__hint",
+          text: "Не удалось загрузить избранное.",
+        }),
+      );
+      return;
+    }
+    if (favorites === null) return;
+
+    const items = favorites.items || [];
+    const section = el("section", { class: "account-group" });
+    section.appendChild(
+      el("h2", { class: "account-group__title" }, [
+        "Избранное",
+        el("span", { class: "muted", text: String(items.length) }),
+      ]),
+    );
+    if (!items.length) {
+      section.appendChild(
+        el("p", {
+          class: "account-group__hint",
+          text: "Пока пусто. Нажмите ♥ в объявлении, чтобы сохранить его здесь.",
+        }),
+      );
+    } else {
+      for (const item of items) section.appendChild(favoriteItem(item));
+    }
+    favoritesNode.appendChild(section);
+  }
+
+  async function refreshFavorites() {
+    try {
+      favorites = await api.getFavorites();
+      favoritesError = null;
+    } catch (error) {
+      favorites = null;
+      favoritesError = error.message || true;
+    }
+    renderFavorites();
   }
 
   function renderEmpty() {
@@ -199,6 +292,7 @@ export function createAccountView({ api, getMe, openListing, openCreate, openEdi
     loading = true;
     renderProfile();
     if (!data) renderLoading();
+    refreshFavorites();
     try {
       data = await api.myListings();
       renderGroups();
@@ -215,6 +309,7 @@ export function createAccountView({ api, getMe, openListing, openCreate, openEdi
       renderProfile();
       if (data) renderGroups();
       else renderLoading();
+      renderFavorites();
     },
     refresh,
     renderProfile,

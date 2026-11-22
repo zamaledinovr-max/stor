@@ -20,16 +20,18 @@ from app.api.presenters import listing_detail, listing_summary, photo_out
 from app.core.config import Settings
 from app.core.enums import ListingCondition, ListingKind
 from app.core.errors import ForbiddenError
+from app.models import Listing
 from app.schemas.common import ErrorResponse, PhotoOut, ValidationErrorResponse
 from app.schemas.listing import (
     CreateListingIn,
+    FavoriteStateOut,
     ListingDetailOut,
     ListingListOut,
     ModerationActionIn,
     StatusUpdateIn,
     UpdateListingIn,
 )
-from app.services import listing_service, photo_service
+from app.services import favorite_service, listing_service, photo_service
 from app.storage.base import Storage
 
 router = APIRouter(prefix="/api", tags=["listings"])
@@ -48,6 +50,27 @@ status_change_rate_limit = rate_limit(
 update_listing_rate_limit = rate_limit(
     "update-listing", lambda settings: settings.rate_limit_update_listing_per_hour, 3600
 )
+favorite_rate_limit = rate_limit(
+    "favorite", lambda settings: settings.rate_limit_favorite_per_hour, 3600
+)
+
+
+def _detail_response(
+    session: Session,
+    listing: Listing,
+    settings: Settings,
+    auth: AuthContext,
+) -> ListingDetailOut:
+    """Build a detail response marking the viewer's bookmark state."""
+
+    return listing_detail(
+        listing,
+        settings,
+        auth.telegram_id,
+        is_favorite=favorite_service.is_favorite(
+            session, auth.telegram_id, listing.id
+        ),
+    )
 
 _LISTING_ERRORS = {
     401: {"model": ErrorResponse, "description": "Недействительные данные Telegram"},
@@ -89,8 +112,19 @@ def list_listings(
         offset=offset,
     )
     items, total = listing_service.list_catalog(session, filters)
+    favorites = favorite_service.favorite_ids(
+        session, auth.telegram_id, [item.id for item in items]
+    )
     return ListingListOut(
-        items=[listing_summary(item, settings, auth.telegram_id) for item in items],
+        items=[
+            listing_summary(
+                item,
+                settings,
+                auth.telegram_id,
+                is_favorite=item.id in favorites,
+            )
+            for item in items
+        ],
         total=total,
         limit=limit,
         offset=offset,
@@ -114,7 +148,7 @@ def create_listing(
 ) -> ListingDetailOut:
     listing = listing_service.create_listing(session, settings, auth.user, payload)
     stored = listing_service.get_listing(session, listing.id)
-    return listing_detail(stored, settings, auth.telegram_id)
+    return _detail_response(session, stored, settings, auth)
 
 
 @router.get(
@@ -136,7 +170,7 @@ def read_listing(
         can_view_unpublished=auth.is_admin,
     )
     listing_service.register_view(session, listing)
-    return listing_detail(listing, settings, auth.telegram_id)
+    return _detail_response(session, listing, settings, auth)
 
 
 @router.put(
@@ -155,7 +189,7 @@ def update_listing(
 ) -> ListingDetailOut:
     listing_service.update_listing(session, settings, auth.user, listing_id, payload)
     stored = listing_service.get_listing(session, listing_id)
-    return listing_detail(stored, settings, auth.telegram_id)
+    return _detail_response(session, stored, settings, auth)
 
 
 @router.patch(
@@ -174,7 +208,7 @@ def update_listing_status(
 ) -> ListingDetailOut:
     listing_service.change_status(session, auth.user, listing_id, payload.status)
     stored = listing_service.get_listing(session, listing_id)
-    return listing_detail(stored, settings, auth.telegram_id)
+    return _detail_response(session, stored, settings, auth)
 
 
 @router.post(
@@ -202,7 +236,39 @@ def moderate_listing(
     else:
         listing_service.restore_listing(session, listing_id, auth.telegram_id)
     stored = listing_service.get_listing(session, listing_id)
-    return listing_detail(stored, settings, auth.telegram_id)
+    return _detail_response(session, stored, settings, auth)
+
+
+@router.put(
+    "/listings/{listing_id}/favorite",
+    response_model=FavoriteStateOut,
+    summary="Добавить объявление в избранное",
+    responses=_LISTING_ERRORS,
+    dependencies=[Depends(favorite_rate_limit)],
+)
+def add_listing_favorite(
+    auth: AuthContext = Depends(get_auth_context),
+    session: Session = Depends(get_session),
+    listing_id: int = Path(ge=1),
+) -> FavoriteStateOut:
+    favorite_service.add_favorite(session, auth.telegram_id, listing_id)
+    return FavoriteStateOut(is_favorite=True)
+
+
+@router.delete(
+    "/listings/{listing_id}/favorite",
+    response_model=FavoriteStateOut,
+    summary="Убрать объявление из избранного",
+    responses=_LISTING_ERRORS,
+    dependencies=[Depends(favorite_rate_limit)],
+)
+def remove_listing_favorite(
+    auth: AuthContext = Depends(get_auth_context),
+    session: Session = Depends(get_session),
+    listing_id: int = Path(ge=1),
+) -> FavoriteStateOut:
+    favorite_service.remove_favorite(session, auth.telegram_id, listing_id)
+    return FavoriteStateOut(is_favorite=False)
 
 
 @router.post(

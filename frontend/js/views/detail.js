@@ -230,6 +230,48 @@ export function createDetailView({
     return actions;
   }
 
+  function setFavoriteState(button, active) {
+    button.classList.toggle("is-active", active);
+    button.textContent = active ? "♥" : "♡";
+    const label = active ? "Убрать из избранного" : "Добавить в избранное";
+    button.setAttribute("aria-pressed", active ? "true" : "false");
+    button.setAttribute("aria-label", label);
+    button.setAttribute("title", label);
+  }
+
+  async function toggleFavorite(listing, button) {
+    const next = !listing.is_favorite;
+    button.disabled = true;
+    try {
+      await (next ? api.addFavorite(listing.id) : api.removeFavorite(listing.id));
+      listing.is_favorite = next;
+      if (current) current.is_favorite = next;
+      setFavoriteState(button, next);
+      notify(next ? "Добавлено в избранное." : "Убрано из избранного.");
+      onChanged?.();
+    } catch (error) {
+      notify(error.message || "Не удалось изменить избранное.", true);
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  function favoriteButton(listing) {
+    const active = Boolean(listing.is_favorite);
+    const label = active ? "Убрать из избранного" : "Добавить в избранное";
+    return el("button", {
+      class: `detail__favorite${active ? " is-active" : ""}`,
+      type: "button",
+      text: active ? "♥" : "♡",
+      attrs: {
+        "aria-label": label,
+        "aria-pressed": active ? "true" : "false",
+        title: label,
+      },
+      onclick: (event) => toggleFavorite(listing, event.currentTarget),
+    });
+  }
+
   async function moderate(listing, action, reason, button) {
     if (button) button.disabled = true;
     try {
@@ -296,8 +338,11 @@ export function createDetailView({
     body.appendChild(renderGallery(listing));
 
     const head = el("div", { class: "detail__head" }, [
-      el("div", { class: "detail__price", text: formatListingPrice(listing) }),
-      el("span", { class: "detail__badge", text: listing.kind_label }),
+      el("div", { class: "detail__head-main" }, [
+        el("div", { class: "detail__price", text: formatListingPrice(listing) }),
+        el("span", { class: "detail__badge", text: listing.kind_label }),
+      ]),
+      favoriteButton(listing),
     ]);
     body.appendChild(head);
     body.appendChild(el("h2", { class: "detail__title", text: listing.title }));
