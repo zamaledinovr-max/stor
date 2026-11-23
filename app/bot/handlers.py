@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import io
 import logging
+from html import escape
 from urllib.parse import urlparse
 
 from aiogram import F, Router
@@ -23,7 +24,7 @@ from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.bot.keyboards import (
@@ -34,8 +35,9 @@ from app.bot.keyboards import (
 )
 from app.bot.notifications import clear_listing_buttons
 from app.core.config import Settings
+from app.core.enums import ListingStatus, ModerationStatus
 from app.core.errors import AppError
-from app.models import AuditEvent, User
+from app.models import AuditEvent, Listing, User
 from app.services import ad_service, listing_service, photo_service
 from app.services.stats_service import CatalogStats, collect_stats, format_stats_text
 from app.storage import build_storage
@@ -124,6 +126,26 @@ def _moderate(
 def _load_recipients(session_factory: sessionmaker[Session]) -> list[int]:
     with session_factory() as session:
         return [int(value) for value in session.scalars(select(User.telegram_id)).all()]
+
+
+def _inline_stats(session_factory: sessionmaker[Session]) -> dict[str, object]:
+    """Published listings available to the inline mode."""
+
+    conditions = (
+        Listing.status == ListingStatus.ACTIVE.value,
+        Listing.moderation_status == ModerationStatus.APPROVED.value,
+    )
+    with session_factory() as session:
+        total = session.scalar(select(func.count(Listing.id)).where(*conditions)) or 0
+        titles = list(
+            session.scalars(
+                select(Listing.title)
+                .where(*conditions)
+                .order_by(Listing.created_at.desc())
+                .limit(3)
+            ).all()
+        )
+    return {"total": int(total), "titles": [str(title)[:40] for title in titles]}
 
 
 def _remove_listing(
@@ -413,6 +435,61 @@ def build_router(settings: Settings, session_factory: sessionmaker[Session]) -> 
             await message.answer("Ошибка сервера. Попробуйте позже.")
             return
         await message.answer(f"✅ Объявление №{listing_id} возвращено в каталог.")
+
+    @router.message(Command("inlineinfo"))
+    async def on_inline_info(message: Message) -> None:
+        if not _is_private_admin(settings, message):
+            await message.answer("⛔ Эта команда доступна только администратору.")
+            return
+
+        username = settings.normalized_bot_username
+        try:
+            me = await message.bot.get_me()
+            actual_username = me.username
+        except TelegramAPIError:
+            actual_username = None
+        try:
+            webhook = await message.bot.get_webhook_info()
+            webhook_url = webhook.url or ""
+        except TelegramAPIError:
+            webhook_url = None
+
+        stats = await asyncio.to_thread(_inline_stats, session_factory)
+        titles = [escape(str(title)) for title in stats["titles"]]
+
+        lines = [
+            "🔎 <b>Инлайн-режим</b>",
+            f"Username в настройках: {('@' + username) if username else '❌ не задан'}",
+            "Реальный username бота: "
+            + (f"@{actual_username}" if actual_username else "неизвестен"),
+            "Webhook: "
+            + (("⚠️ включён " + escape(webhook_url)) if webhook_url else "нет (long polling)"),
+            f"Активных опубликованных объявлений: {stats['total']}",
+        ]
+        if titles:
+            lines.append("Примеры: " + ", ".join(titles))
+
+        if not username:
+            lines.append(
+                "→ Добавьте <code>TELEGRAM_BOT_USERNAME</code> и перезапустите проект."
+            )
+        elif actual_username and username.lower() != actual_username.lower():
+            lines.append(
+                "→ Username в настройках не совпадает с реальным — исправьте переменную."
+            )
+        if webhook_url:
+            lines.append(
+                "→ Вебхук включён и перехватывает обновления: удалите его (deleteWebhook)."
+            )
+        if int(stats["total"]) == 0:
+            lines.append(
+                "→ Нет активных опубликованных объявлений: инлайну нечего показывать."
+            )
+        if username and not webhook_url and int(stats["total"]) > 0:
+            lines.append(
+                f"→ Всё настроено: в любом чате напишите @{username} и пробел."
+            )
+        await message.answer("\n".join(lines))
 
     @router.message(Command("cancel"))
     async def on_cancel(message: Message, state: FSMContext) -> None:

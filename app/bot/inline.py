@@ -8,6 +8,7 @@ card with a button that opens the Mini App on that listing
 from __future__ import annotations
 
 import asyncio
+import logging
 from html import escape
 
 from aiogram import Router
@@ -29,6 +30,8 @@ from app.services.notification_service import format_money
 
 INLINE_RESULT_LIMIT = 10
 INLINE_QUERIES_PER_MINUTE = 60
+
+logger = logging.getLogger(__name__)
 
 
 def share_link(settings: Settings, listing_id: int) -> str | None:
@@ -123,6 +126,12 @@ def build_inline_router(
             return
         results = await asyncio.to_thread(
             _build_sync, session_factory, settings, query.query
+        )
+        logger.info(
+            "Inline query %r from %s -> %s results",
+            query.query[:60],
+            user_id,
+            len(results),
         )
         await query.answer(results, cache_time=30, is_personal=True)
 
