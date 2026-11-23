@@ -27,6 +27,7 @@ from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.bot.inline import search_listings
 from app.bot.keyboards import (
     broadcast_confirm_keyboard,
     group_text,
@@ -158,11 +159,10 @@ def _inline_search(
 ) -> dict[str, object]:
     """Run the same search the inline mode uses and report what it finds."""
 
-    filters = listing_service.CatalogFilters(q=query or None, limit=5, offset=0)
     with session_factory() as session:
-        items, total = listing_service.list_catalog(session, filters)
+        items = search_listings(session, query, limit=5)
     return {
-        "total": int(total),
+        "total": len(items),
         "titles": [item.title[:40] for item in items],
     }
 

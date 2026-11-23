@@ -87,6 +87,20 @@ def _search_fallback(session: Session, query: str) -> list[Listing]:
     ]
 
 
+def search_listings(
+    session: Session, query: str, limit: int = INLINE_RESULT_LIMIT
+) -> list[Listing]:
+    """Published listings for a query, with a Python-side case-insensitive fallback."""
+
+    filters = listing_service.CatalogFilters(
+        q=query.strip() or None, limit=limit, offset=0
+    )
+    listings, _total = listing_service.list_catalog(session, filters)
+    if not listings and query.strip():
+        listings = _search_fallback(session, query)[:limit]
+    return listings
+
+
 def build_results(
     session: Session,
     settings: Settings,
@@ -98,12 +112,7 @@ def build_results(
     if not settings.normalized_bot_username:
         return []
 
-    filters = listing_service.CatalogFilters(
-        q=query.strip() or None, limit=limit, offset=0
-    )
-    listings, _total = listing_service.list_catalog(session, filters)
-    if not listings and query.strip():
-        listings = _search_fallback(session, query)[:limit]
+    listings = search_listings(session, query, limit)
 
     results: list[InlineQueryResultArticle] = []
     for listing in listings:
