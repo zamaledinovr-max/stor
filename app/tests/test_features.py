@@ -14,7 +14,7 @@ class Sender:
     def __init__(self) -> None:
         self.messages = []
 
-    async def send(self, chat_id, text, button_text, button_url, buttons=None) -> None:
+    async def send(self, chat_id, text, button_text, button_url, buttons=None):
         self.messages.append(
             {
                 "chat_id": chat_id,
@@ -24,6 +24,7 @@ class Sender:
                 "buttons": buttons,
             }
         )
+        return 1
 
 
 def _create(client, auth_headers, **overrides):

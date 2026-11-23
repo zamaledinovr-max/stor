@@ -2,7 +2,7 @@
 
 import { clear, el, show } from "../dom.js";
 import { formatCount, formatDateTime, formatListingPrice, timeAgo } from "../format.js";
-import { openLink } from "../telegram.js";
+import { openLink, shareToTelegram } from "../telegram.js";
 
 export function createDetailView({
   api,
@@ -153,6 +153,27 @@ export function createDetailView({
 
   function renderActions(listing) {
     const actions = el("div", { class: "detail__actions" });
+    const botUsername = getMeta()?.bot_username;
+    if (botUsername) {
+      actions.appendChild(
+        el("button", {
+          class: "button button--ghost",
+          type: "button",
+          text: "Поделиться",
+          onclick: () =>
+            shareToTelegram(
+              `https://t.me/${botUsername}?startapp=listing_${listing.id}`,
+              `${listing.title} · ${formatListingPrice(listing)}`,
+            ),
+        }),
+      );
+      actions.appendChild(
+        el("p", {
+          class: "detail__meta",
+          text: `Или отправьте @${botUsername} в любом чате`,
+        }),
+      );
+    }
 
     if (listing.is_owner && listing.available_statuses.length) {
       const row = el("div", { class: "detail__actions-row" });

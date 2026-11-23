@@ -82,6 +82,24 @@ export function createCatalogView({ api, getMeta, openListing, openLink, notify 
       media.appendChild(placeholder());
     }
     media.appendChild(el("span", { class: "card__type", text: item.kind_label }));
+    media.appendChild(
+      el("button", {
+        class: `card__favorite${item.is_favorite ? " is-active" : ""}`,
+        type: "button",
+        text: item.is_favorite ? "♥" : "♡",
+        attrs: {
+          "aria-label": item.is_favorite
+            ? "Убрать из избранного"
+            : "Добавить в избранное",
+          "aria-pressed": item.is_favorite ? "true" : "false",
+        },
+        onclick: (event) => {
+          event.stopPropagation();
+          toggleFavorite(item, event.currentTarget);
+        },
+        onkeydown: (event) => event.stopPropagation(),
+      }),
+    );
     if (item.photo_count > 1) {
       media.appendChild(
         el("span", { class: "card__status", text: `${item.photo_count} фото` }),
@@ -109,15 +127,43 @@ export function createCatalogView({ api, getMeta, openListing, openLink, notify 
     );
 
     return el(
-      "button",
+      "div",
       {
         class: "card",
-        type: "button",
         onclick: () => openListing(item.id),
-        attrs: { "aria-label": `${item.kind_label}: ${item.title}` },
+        onkeydown: (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            openListing(item.id);
+          }
+        },
+        attrs: {
+          role: "button",
+          tabindex: "0",
+          "aria-label": `${item.kind_label}: ${item.title}`,
+        },
       },
       [media, body],
     );
+  }
+
+  async function toggleFavorite(item, button) {
+    const next = !item.is_favorite;
+    button.disabled = true;
+    try {
+      await (next ? api.addFavorite(item.id) : api.removeFavorite(item.id));
+      item.is_favorite = next;
+      button.classList.toggle("is-active", next);
+      button.textContent = next ? "♥" : "♡";
+      const label = next ? "Убрать из избранного" : "Добавить в избранное";
+      button.setAttribute("aria-pressed", next ? "true" : "false");
+      button.setAttribute("aria-label", label);
+      notify(next ? "Добавлено в избранное." : "Убрано из избранного.");
+    } catch (error) {
+      notify(error.message || "Не удалось изменить избранное.", true);
+    } finally {
+      button.disabled = false;
+    }
   }
 
   function renderSkeletons() {

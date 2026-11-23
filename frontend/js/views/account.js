@@ -23,28 +23,53 @@ export function createAccountView({ api, getMe, openListing, openCreate, openEdi
   let loading = false;
   let favorites = null;
   let favoritesError = null;
+  let favoritesOpen = true;
+  const expandedGroups = new Set(["pending", "active"]);
+
+  function statTile(label, value) {
+    return el("div", { class: "account-stat" }, [
+      el("span", { class: "account-stat__value", text: String(value) }),
+      el("span", { class: "account-stat__label", text: label }),
+    ]);
+  }
 
   function renderProfile() {
     clear(profileNode);
     const me = getMe();
     if (!me) {
-      profileNode.appendChild(el("div", { class: "account__meta", text: "Профиль загружается…" }));
+      profileNode.appendChild(
+        el("div", { class: "account__meta", text: "Профиль загружается…" }),
+      );
       return;
     }
     const user = me.user;
-    const initial = (user.first_name || user.username || "?").trim().charAt(0).toUpperCase();
-    profileNode.appendChild(el("div", { class: "account__avatar", text: initial }));
-    const body = el("div", {}, [
-      el("div", { class: "account__name", text: user.display_name }),
-      el("div", {
-        class: "account__meta",
-        text: user.username ? `@${user.username}` : "Telegram-аккаунт",
-      }),
-    ]);
-    if (me.is_admin) {
-      body.appendChild(el("div", { class: "account__meta", text: "Администратор" }));
-    }
-    profileNode.appendChild(body);
+    const initial = (user.first_name || user.username || "?")
+      .trim()
+      .charAt(0)
+      .toUpperCase();
+
+    profileNode.appendChild(
+      el("div", { class: "account-profile" }, [
+        el("div", { class: "account-profile__avatar", text: initial }),
+        el("div", { class: "account-profile__name", text: user.display_name }),
+        el("div", {
+          class: "account-profile__meta",
+          text: user.username ? `@${user.username}` : "Telegram-аккаунт",
+        }),
+        me.is_admin
+          ? el("span", { class: "account-profile__badge", text: "Администратор" })
+          : null,
+      ]),
+    );
+
+    const counts = data?.counts || {};
+    profileNode.appendChild(
+      el("div", { class: "account-stats" }, [
+        statTile("Объявления", data?.total ?? 0),
+        statTile("В продаже", counts.active ?? 0),
+        statTile("Избранное", favorites?.total ?? 0),
+      ]),
+    );
   }
 
   async function changeStatus(item, status, button) {
@@ -70,6 +95,14 @@ export function createAccountView({ api, getMe, openListing, openCreate, openEdi
       text: label,
       onclick: (event) => changeStatus(item, target, event.currentTarget),
     });
+  }
+
+  function pillClass(item) {
+    const key =
+      item.moderation_status === "approved"
+        ? item.status
+        : item.moderation_status;
+    return `pill pill--${key}`;
   }
 
   function itemThumb(item) {
@@ -109,7 +142,10 @@ export function createAccountView({ api, getMe, openListing, openCreate, openEdi
 
     const body = el("div", { class: "account-item__body" }, [
       el("div", { class: "account-item__title", text: item.title }),
-      el("div", { class: "muted", text: `${stateLabel} · ${formatListingPrice(item)}` }),
+      el("div", { class: "account-item__state" }, [
+        el("span", { class: pillClass(item), text: stateLabel }),
+        el("span", { class: "account-item__price", text: formatListingPrice(item) }),
+      ]),
       el("div", { class: "muted", text: `${item.district} · ${timeAgo(item.created_at)}` }),
     ]);
     if (!approved && item.moderation_reason) {
@@ -130,7 +166,10 @@ export function createAccountView({ api, getMe, openListing, openCreate, openEdi
       item.moderation_status === "approved" ? item.status_label : item.moderation_label;
     const body = el("div", { class: "account-item__body" }, [
       el("div", { class: "account-item__title", text: item.title }),
-      el("div", { class: "muted", text: `${stateLabel} · ${formatListingPrice(item)}` }),
+      el("div", { class: "account-item__state" }, [
+        el("span", { class: pillClass(item), text: stateLabel }),
+        el("span", { class: "account-item__price", text: formatListingPrice(item) }),
+      ]),
       el("div", { class: "muted", text: `${item.district} · ${timeAgo(item.created_at)}` }),
       el("div", { class: "account-item__actions" }, [
         el("button", {
@@ -179,20 +218,37 @@ export function createAccountView({ api, getMe, openListing, openCreate, openEdi
     const items = favorites.items || [];
     const section = el("section", { class: "account-group" });
     section.appendChild(
-      el("h2", { class: "account-group__title" }, [
-        "Избранное",
-        el("span", { class: "muted", text: String(items.length) }),
-      ]),
+      el(
+        "button",
+        {
+          class: `account-group__header${favoritesOpen ? " is-open" : ""}`,
+          type: "button",
+          attrs: { "aria-expanded": favoritesOpen ? "true" : "false" },
+          onclick: () => {
+            favoritesOpen = !favoritesOpen;
+            renderFavorites();
+          },
+        },
+        [
+          el("span", { class: "account-group__title", text: "Избранное" }),
+          el("span", { class: "account-group__count", text: String(items.length) }),
+          el("span", { class: "account-group__chevron", text: "›" }),
+        ],
+      ),
     );
-    if (!items.length) {
-      section.appendChild(
-        el("p", {
-          class: "account-group__hint",
-          text: "Пока пусто. Нажмите ♥ в объявлении, чтобы сохранить его здесь.",
-        }),
-      );
-    } else {
-      for (const item of items) section.appendChild(favoriteItem(item));
+    if (favoritesOpen) {
+      if (!items.length) {
+        section.appendChild(
+          el("p", {
+            class: "account-group__hint",
+            text: "Пока пусто. Нажмите ♥ в объявлении, чтобы сохранить его здесь.",
+          }),
+        );
+      } else {
+        const list = el("div", { class: "account-group__list" });
+        for (const item of items) list.appendChild(favoriteItem(item));
+        section.appendChild(list);
+      }
     }
     favoritesNode.appendChild(section);
   }
@@ -205,6 +261,7 @@ export function createAccountView({ api, getMe, openListing, openCreate, openEdi
       favorites = null;
       favoritesError = error.message || true;
     }
+    renderProfile();
     renderFavorites();
   }
 
@@ -245,16 +302,35 @@ export function createAccountView({ api, getMe, openListing, openCreate, openEdi
     );
   }
 
-  function renderGroup(title, items) {
+  function renderGroup(title, items, key) {
     if (!items.length) return;
+    const open = expandedGroups.has(key);
     const section = el("section", { class: "account-group" });
     section.appendChild(
-      el("h2", { class: "account-group__title" }, [
-        title,
-        el("span", { class: "muted", text: String(items.length) }),
-      ]),
+      el(
+        "button",
+        {
+          class: `account-group__header${open ? " is-open" : ""}`,
+          type: "button",
+          attrs: { "aria-expanded": open ? "true" : "false" },
+          onclick: () => {
+            if (expandedGroups.has(key)) expandedGroups.delete(key);
+            else expandedGroups.add(key);
+            renderGroups();
+          },
+        },
+        [
+          el("span", { class: "account-group__title", text: title }),
+          el("span", { class: "account-group__count", text: String(items.length) }),
+          el("span", { class: "account-group__chevron", text: "›" }),
+        ],
+      ),
     );
-    for (const item of items) section.appendChild(accountItem(item));
+    if (open) {
+      const list = el("div", { class: "account-group__list" });
+      for (const item of items) list.appendChild(accountItem(item));
+      section.appendChild(list);
+    }
     groupsNode.appendChild(section);
   }
 
@@ -269,6 +345,7 @@ export function createAccountView({ api, getMe, openListing, openCreate, openEdi
       renderGroup(
         group.title,
         data.items.filter((item) => item.moderation_status === group.key),
+        group.key,
       );
     }
     const approved = data.items.filter((item) => item.moderation_status === "approved");
@@ -276,6 +353,7 @@ export function createAccountView({ api, getMe, openListing, openCreate, openEdi
       renderGroup(
         group.title,
         approved.filter((item) => item.status === group.key),
+        group.key,
       );
     }
   }
@@ -295,6 +373,7 @@ export function createAccountView({ api, getMe, openListing, openCreate, openEdi
     refreshFavorites();
     try {
       data = await api.myListings();
+      renderProfile();
       renderGroups();
     } catch (error) {
       data = null;

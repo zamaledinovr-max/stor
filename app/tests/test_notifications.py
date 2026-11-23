@@ -21,7 +21,7 @@ class RecordingSender:
         self.error = error
         self.messages: list[dict] = []
 
-    async def send(self, chat_id, text, button_text, button_url, buttons=None) -> None:
+    async def send(self, chat_id, text, button_text, button_url, buttons=None):
         if self.error is not None:
             raise self.error
         self.messages.append(
@@ -33,6 +33,7 @@ class RecordingSender:
                 "buttons": buttons,
             }
         )
+        return 1000 + len(self.messages)
 
 
 def _outbox(session_factory):
@@ -79,6 +80,8 @@ def test_successful_dispatch_does_not_repeat(client, create_listing, session_fac
 
     rows = _outbox(session_factory)
     assert all(row.status == "sent" and row.sent_at is not None for row in rows)
+    # Message ids are stored so the admin buttons can be retracted later.
+    assert all(row.message_id is not None for row in rows)
 
 
 def test_failed_notification_does_not_lose_listing(

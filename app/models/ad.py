@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Index, String, Text, true
+from sqlalchemy import BigInteger, Boolean, DateTime, Index, String, true
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.timeutils import utcnow

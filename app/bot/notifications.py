@@ -6,11 +6,13 @@ import asyncio
 import logging
 
 from aiogram import Bot
-from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
+from aiogram.exceptions import TelegramAPIError, TelegramBadRequest, TelegramForbiddenError
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Settings
+from app.models import NotificationOutbox
 from app.services.notification_service import (
     PermanentNotificationError,
     dispatch_pending,
@@ -77,7 +79,7 @@ class BotNotificationSender:
     ) -> None:
         reply_markup = build_inline_keyboard(buttons, button_text, button_url)
         try:
-            await self.bot.send_message(
+            message = await self.bot.send_message(
                 chat_id=chat_id,
                 text=text,
                 reply_markup=reply_markup,
@@ -86,6 +88,43 @@ class BotNotificationSender:
             # The bot cannot write to this chat (blocked, deactivated, wrong id):
             # retrying would never succeed.
             raise PermanentNotificationError(type(exc).__name__) from exc
+        return message.message_id
+
+
+def _load_listing_messages(
+    session_factory: sessionmaker[Session], listing_id: int
+) -> list[tuple[int, int]]:
+    with session_factory() as session:
+        rows = session.scalars(
+            select(NotificationOutbox).where(
+                NotificationOutbox.listing_id == listing_id,
+                NotificationOutbox.message_id.is_not(None),
+            )
+        ).all()
+    return [(row.chat_id, int(row.message_id)) for row in rows if row.message_id]
+
+
+async def clear_listing_buttons(
+    bot: Bot,
+    session_factory: sessionmaker[Session],
+    listing_id: int,
+    *,
+    skip_chat_id: int | None = None,
+    skip_message_id: int | None = None,
+) -> None:
+    """Remove moderation keyboards from all admin notifications of the listing."""
+
+    targets = await asyncio.to_thread(_load_listing_messages, session_factory, listing_id)
+    for chat_id, message_id in targets:
+        if chat_id == skip_chat_id and message_id == skip_message_id:
+            continue
+        try:
+            await bot.edit_message_reply_markup(
+                chat_id=chat_id, message_id=message_id, reply_markup=None
+            )
+        except TelegramAPIError:
+            # The message could be deleted or the bot blocked: nothing to do.
+            continue
 
 
 async def outbox_worker(

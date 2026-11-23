@@ -16,6 +16,9 @@ BODY = {
     "district": "Центр",
 }
 
+# PUT accepts the editable fields only: `kind` is immutable there.
+UPDATE_BODY = {key: value for key, value in BODY.items() if key != "kind"}
+
 
 def _create(client, auth_headers, **overrides):
     body = {**BODY, **overrides}
@@ -108,7 +111,7 @@ def test_rejected_listing_is_resubmitted_after_edit(client_factory, auth_headers
 
     updated = client.put(
         f"/api/listings/{created['id']}",
-        json={**BODY, "description": "Исправленное описание"},
+        json={**UPDATE_BODY, "description": "Исправленное описание"},
         headers=auth_headers(1001),
     ).json()
     assert updated["moderation_status"] == "pending"
@@ -207,7 +210,7 @@ def test_removed_listing_is_not_resubmitted_by_editing(client_factory, auth_head
 
     updated = client.put(
         f"/api/listings/{created['id']}",
-        json={**BODY, "description": "Новое описание"},
+        json={**UPDATE_BODY, "description": "Новое описание"},
         headers=auth_headers(1001),
     )
     assert updated.status_code == 200

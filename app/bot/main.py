@@ -19,6 +19,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import BotCommand, BotCommandScopeChat, MenuButtonWebApp, WebAppInfo
 
 from app.bot.handlers import build_router
+from app.bot.inline import build_inline_router
 from app.bot.notifications import outbox_worker
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
@@ -82,6 +83,7 @@ async def run_bot(settings: Settings | None = None) -> None:
     )
     dispatcher = Dispatcher(storage=MemoryStorage())
     dispatcher.include_router(build_router(app_settings, session_factory))
+    dispatcher.include_router(build_inline_router(app_settings, session_factory))
 
     worker = asyncio.create_task(
         outbox_worker(bot, session_factory, app_settings), name="notification-outbox"

@@ -32,6 +32,7 @@ from app.bot.keyboards import (
     help_text,
     start_text,
 )
+from app.bot.notifications import clear_listing_buttons
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.models import AuditEvent, User
@@ -445,6 +446,13 @@ def build_router(settings: Settings, session_factory: sessionmaker[Session]) -> 
                 return
             if callback.message is not None:
                 await _edit_decision(callback.message, f"✅ Опубликовано администратором {actor}")
+            await clear_listing_buttons(
+                callback.bot,
+                session_factory,
+                listing_id,
+                skip_chat_id=callback.message.chat.id if callback.message else None,
+                skip_message_id=callback.message.message_id if callback.message else None,
+            )
             await callback.answer("Опубликовано")
             return
 
@@ -512,6 +520,13 @@ def build_router(settings: Settings, session_factory: sessionmaker[Session]) -> 
                 )
             except TelegramAPIError:
                 pass
+        await clear_listing_buttons(
+            message.bot,
+            session_factory,
+            listing_id,
+            skip_chat_id=chat_id,
+            skip_message_id=message_id,
+        )
         await message.answer(
             f"❌ Объявление №{listing_id} отклонено. Причина отправлена автору."
         )

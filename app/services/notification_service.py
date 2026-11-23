@@ -49,7 +49,7 @@ class NotificationSender(Protocol):
         button_text: str | None,
         button_url: str | None,
         buttons: list[list[dict[str, str]]] | None = None,
-    ) -> None: ...
+    ) -> int | None: ...
 
 
 @dataclass
@@ -131,6 +131,8 @@ def _enqueue_for_admins(
     settings: Settings,
     dedupe_prefix: str,
     payload: dict[str, Any],
+    *,
+    listing_id: int | None = None,
 ) -> list[NotificationOutbox]:
     rows: list[NotificationOutbox] = []
     for admin_id in dict.fromkeys(settings.admin_ids):
@@ -139,6 +141,7 @@ def _enqueue_for_admins(
                 dedupe_key=f"{dedupe_prefix}:{admin_id}",
                 chat_id=admin_id,
                 payload=payload,
+                listing_id=listing_id,
                 status=OUTBOX_PENDING,
                 attempts=0,
                 created_at=utcnow(),
@@ -159,6 +162,7 @@ def enqueue_listing_created(
         settings,
         f"listing_created:{listing.id}",
         build_listing_payload(listing, settings),
+        listing_id=listing.id,
     )
 
 
@@ -193,6 +197,7 @@ def enqueue_listing_resubmitted(
         settings,
         f"listing_resubmitted:{listing.id}:{listing.moderation_attempt}",
         payload,
+        listing_id=listing.id,
     )
 
 
@@ -291,16 +296,23 @@ def enqueue_listing_complaint(
         settings,
         f"listing_complaint:{complaint.id}",
         payload,
+        listing_id=listing.id,
     )
 
 
-def _mark_sent(session_factory: sessionmaker[Session], row_id: int, now: datetime) -> None:
+def _mark_sent(
+    session_factory: sessionmaker[Session],
+    row_id: int,
+    now: datetime,
+    message_id: int | None = None,
+) -> None:
     with session_factory() as session:
         row = session.get(NotificationOutbox, row_id)
         if row is None or row.status != OUTBOX_PENDING:
             return
         row.status = OUTBOX_SENT
         row.sent_at = now
+        row.message_id = message_id
         row.last_error = None
         session.commit()
 
@@ -370,7 +382,7 @@ async def dispatch_pending(
             result.failed += 1
             continue
         try:
-            await sender.send(
+            message_id = await sender.send(
                 chat_id,
                 text,
                 str(button_text) if button_text else None,
@@ -395,7 +407,7 @@ async def dispatch_pending(
                 "permanent" if permanent else "retry scheduled",
             )
         else:
-            _mark_sent(session_factory, row_id, current)
+            _mark_sent(session_factory, row_id, current, message_id)
             result.sent += 1
     return result
 

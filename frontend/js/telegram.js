@@ -108,6 +108,20 @@ export function openLink(url) {
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
+/** Open the native Telegram "share to chat" dialog. */
+export function shareToTelegram(url, text) {
+  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
+  try {
+    if (webApp?.openTelegramLink) {
+      webApp.openTelegramLink(shareUrl);
+      return;
+    }
+  } catch (error) {
+    console.warn("share failed", error);
+  }
+  window.open(shareUrl, "_blank", "noopener,noreferrer");
+}
+
 export function haptic(type = "light") {
   try {
     webApp?.HapticFeedback?.impactOccurred(type);
