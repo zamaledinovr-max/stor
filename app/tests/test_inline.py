@@ -50,6 +50,28 @@ def test_inline_finds_cyrillic_query_case_insensitively(client_factory, auth_hea
     assert [card.title for card in results] == ["Хросик"]
 
 
+def test_cover_endpoint_serves_published_listing(client, create_listing, auth_headers):
+    from app.tests.images import make_image_bytes
+
+    listing = create_listing(1001).json()
+    upload = client.post(
+        f"/api/listings/{listing['id']}/photos",
+        headers=auth_headers(1001),
+        files={"file": ("photo.png", make_image_bytes(), "image/png")},
+    )
+    assert upload.status_code == 201
+
+    cover = client.get(f"/api/listings/{listing['id']}/cover")
+    assert cover.status_code == 200
+    assert cover.headers["content-type"] == "image/png"
+
+
+def test_cover_endpoint_hides_unpublished_listing(client_factory, auth_headers):
+    client = client_factory(listing_moderation_enabled=True)
+    created = _create(client, auth_headers)
+    assert client.get(f"/api/listings/{created['id']}/cover").status_code == 404
+
+
 def test_inline_ignores_unpublished_listings(client_factory, auth_headers):
     client = client_factory(
         telegram_bot_username="market_bot", listing_moderation_enabled=True

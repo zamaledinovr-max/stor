@@ -8,6 +8,9 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, File, Path, Query, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+
 from app.api.deps import (
     AuthContext,
     get_app_settings,
@@ -18,8 +21,8 @@ from app.api.deps import (
 )
 from app.api.presenters import listing_detail, listing_summary, photo_out
 from app.core.config import Settings
-from app.core.enums import ListingCondition, ListingKind
-from app.core.errors import ForbiddenError
+from app.core.enums import ListingCondition, ListingKind, ListingStatus, ModerationStatus
+from app.core.errors import ForbiddenError, NotFoundError
 from app.models import Listing
 from app.schemas.common import ErrorResponse, PhotoOut, ValidationErrorResponse
 from app.schemas.listing import (
@@ -237,6 +240,47 @@ def moderate_listing(
         listing_service.restore_listing(session, listing_id, auth.telegram_id)
     stored = listing_service.get_listing(session, listing_id)
     return _detail_response(session, stored, settings, auth)
+
+
+@router.get(
+    "/listings/{listing_id}/cover",
+    response_class=Response,
+    summary="Обложка объявления (публичное превью)",
+    responses={404: {"model": ErrorResponse, "description": "Обложка не найдена"}},
+)
+def read_listing_cover(
+    session: Session = Depends(get_session),
+    storage: Storage = Depends(get_storage),
+    listing_id: int = Path(ge=1),
+) -> Response:
+    """Public cover image for link/inline previews.
+
+    Signed photo URLs are not suitable for Telegram previews (`WEBDOCUMENT_URL_INVALID`),
+    so published listings expose their cover photo by a plain, cacheable URL.
+    """
+
+    listing = session.scalar(
+        select(Listing)
+        .options(selectinload(Listing.photos))
+        .where(
+            Listing.id == listing_id,
+            Listing.status == ListingStatus.ACTIVE.value,
+            Listing.moderation_status == ModerationStatus.APPROVED.value,
+        )
+    )
+    if listing is None or not listing.photos:
+        raise NotFoundError("Обложка не найдена.")
+    photo = listing.photos[0]
+    data = photo_service.read_photo(photo, storage)
+    return Response(
+        content=data,
+        media_type=photo.content_type,
+        headers={
+            "Cache-Control": "public, max-age=600",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "default-src 'none'; sandbox",
+        },
+    )
 
 
 @router.put(

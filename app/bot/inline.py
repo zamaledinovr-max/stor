@@ -12,6 +12,7 @@ import logging
 from html import escape
 
 from aiogram import Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -25,7 +26,6 @@ from sqlalchemy.orm import Session, sessionmaker, selectinload
 from app.core.config import Settings
 from app.core.enums import ListingStatus, ModerationStatus
 from app.core.rate_limit import RateLimiter
-from app.core.signing import build_photo_url
 from app.models import Listing
 from app.services import listing_service
 from app.services.notification_service import format_money
@@ -121,12 +121,15 @@ def build_results(
             continue
         description = f"{_price_line(listing)} · {listing.district}"
         photos = list(listing.photos)
+        thumbnail = (
+            f"{settings.webapp_url}/api/listings/{listing.id}/cover" if photos else None
+        )
         results.append(
             InlineQueryResultArticle(
                 id=str(listing.id),
                 title=listing.title,
                 description=description,
-                thumbnail_url=build_photo_url(photos[0].id, settings) if photos else None,
+                thumbnail_url=thumbnail,
                 input_message_content=InputTextMessageContent(
                     message_text=f"<b>{escape(listing.title)}</b>\n{escape(description)}",
                     parse_mode="HTML",
@@ -176,6 +179,14 @@ def build_inline_router(
             user_id,
             len(results),
         )
-        await query.answer(results, cache_time=30, is_personal=True)
+        try:
+            await query.answer(results, cache_time=30, is_personal=True)
+        except TelegramBadRequest as exc:
+            # Telegram may reject a preview URL (e.g. WEBDOCUMENT_URL_INVALID).
+            # Cards still work without thumbnails, so retry once without them.
+            logger.warning("Inline answer rejected (%s); retrying without thumbnails", exc)
+            for result in results:
+                result.thumbnail_url = None
+            await query.answer(results, cache_time=30, is_personal=True)
 
     return router
