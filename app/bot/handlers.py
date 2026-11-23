@@ -148,6 +148,20 @@ def _inline_stats(session_factory: sessionmaker[Session]) -> dict[str, object]:
     return {"total": int(total), "titles": [str(title)[:40] for title in titles]}
 
 
+def _inline_search(
+    session_factory: sessionmaker[Session], query: str
+) -> dict[str, object]:
+    """Run the same search the inline mode uses and report what it finds."""
+
+    filters = listing_service.CatalogFilters(q=query or None, limit=5, offset=0)
+    with session_factory() as session:
+        items, total = listing_service.list_catalog(session, filters)
+    return {
+        "total": int(total),
+        "titles": [item.title[:40] for item in items],
+    }
+
+
 def _remove_listing(
     session_factory: sessionmaker[Session],
     listing_id: int,
@@ -457,6 +471,9 @@ def build_router(settings: Settings, session_factory: sessionmaker[Session]) -> 
         stats = await asyncio.to_thread(_inline_stats, session_factory)
         titles = [escape(str(title)) for title in stats["titles"]]
 
+        parts = (message.text or "").split(maxsplit=1)
+        search_query = parts[1].strip() if len(parts) > 1 else ""
+
         lines = [
             "🔎 <b>Инлайн-режим</b>",
             f"Username в настройках: {('@' + username) if username else '❌ не задан'}",
@@ -468,6 +485,22 @@ def build_router(settings: Settings, session_factory: sessionmaker[Session]) -> 
         ]
         if titles:
             lines.append("Примеры: " + ", ".join(titles))
+
+        if search_query:
+            found = await asyncio.to_thread(_inline_search, session_factory, search_query)
+            lines.append(
+                f"Поиск «{escape(search_query)}»: найдено {found['total']}"
+            )
+            if found["titles"]:
+                lines.append(
+                    "Совпадения: "
+                    + ", ".join(escape(str(title)) for title in found["titles"])
+                )
+            else:
+                lines.append(
+                    "→ По этому запросу ничего не найдено: проверьте статус объявления "
+                    "(должно быть «Активно» и одобрено)."
+                )
 
         if not username:
             lines.append(
