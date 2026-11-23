@@ -19,9 +19,11 @@ from aiogram.types import (
     InlineQueryResultArticle,
     InputTextMessageContent,
 )
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy import select
+from sqlalchemy.orm import Session, sessionmaker, selectinload
 
 from app.core.config import Settings
+from app.core.enums import ListingStatus, ModerationStatus
 from app.core.rate_limit import RateLimiter
 from app.core.signing import build_photo_url
 from app.models import Listing
@@ -30,6 +32,7 @@ from app.services.notification_service import format_money
 
 INLINE_RESULT_LIMIT = 10
 INLINE_QUERIES_PER_MINUTE = 60
+INLINE_FALLBACK_SCAN = 200
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +58,35 @@ def _price_line(listing: Listing) -> str:
     return format_money(listing.price_amount, listing.currency)
 
 
+def _search_fallback(session: Session, query: str) -> list[Listing]:
+    """Case-insensitive search that does not depend on the database collation.
+
+    SQLite compares non-ASCII text case-sensitively, so "хро" does not match
+    "Хросик" there. Inline results scan the latest published listings in Python
+    as a fallback, which works the same on SQLite and PostgreSQL.
+    """
+
+    needle = query.strip().casefold()
+    if not needle:
+        return []
+    listings = session.scalars(
+        select(Listing)
+        .options(selectinload(Listing.photos))
+        .where(
+            Listing.status == ListingStatus.ACTIVE.value,
+            Listing.moderation_status == ModerationStatus.APPROVED.value,
+        )
+        .order_by(Listing.created_at.desc())
+        .limit(INLINE_FALLBACK_SCAN)
+    ).all()
+    return [
+        listing
+        for listing in listings
+        if needle in listing.title.casefold()
+        or (listing.description and needle in listing.description.casefold())
+    ]
+
+
 def build_results(
     session: Session,
     settings: Settings,
@@ -70,6 +102,8 @@ def build_results(
         q=query.strip() or None, limit=limit, offset=0
     )
     listings, _total = listing_service.list_catalog(session, filters)
+    if not listings and query.strip():
+        listings = _search_fallback(session, query)[:limit]
 
     results: list[InlineQueryResultArticle] = []
     for listing in listings:

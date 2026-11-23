@@ -145,7 +145,12 @@ def _inline_stats(session_factory: sessionmaker[Session]) -> dict[str, object]:
                 .limit(3)
             ).all()
         )
-    return {"total": int(total), "titles": [str(title)[:40] for title in titles]}
+        dialect = session.get_bind().dialect.name
+    return {
+        "total": int(total),
+        "titles": [str(title)[:40] for title in titles],
+        "dialect": dialect,
+    }
 
 
 def _inline_search(
@@ -482,6 +487,7 @@ def build_router(settings: Settings, session_factory: sessionmaker[Session]) -> 
             "Webhook: "
             + (("⚠️ включён " + escape(webhook_url)) if webhook_url else "нет (long polling)"),
             f"Активных опубликованных объявлений: {stats['total']}",
+            f"База данных: {stats['dialect']}",
         ]
         if titles:
             lines.append("Примеры: " + ", ".join(titles))

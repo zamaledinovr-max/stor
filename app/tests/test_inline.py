@@ -41,6 +41,15 @@ def test_inline_is_disabled_without_bot_username(client, create_listing):
         assert build_results(session, client.app.state.settings, "") == []
 
 
+def test_inline_finds_cyrillic_query_case_insensitively(client_factory, auth_headers):
+    client = client_factory(telegram_bot_username="market_bot")
+    _create(client, auth_headers, title="Хросик", description="Комплект, две капсулы")
+    with client.app.state.session_factory() as session:
+        results = build_results(session, client.app.state.settings, "хро")
+
+    assert [card.title for card in results] == ["Хросик"]
+
+
 def test_inline_ignores_unpublished_listings(client_factory, auth_headers):
     client = client_factory(
         telegram_bot_username="market_bot", listing_moderation_enabled=True
