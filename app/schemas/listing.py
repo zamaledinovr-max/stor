@@ -78,7 +78,7 @@ class CreateListingIn(BaseModel):
         Field(ge=0, le=MAX_PRICE, max_digits=12, decimal_places=2),
     ] = None
     price_negotiable: bool = False
-    district: Annotated[str, Field(min_length=1, max_length=32)]
+    district: Annotated[str, Field(min_length=1, max_length=40)]
     rules_accepted: bool = False
 
     @field_validator("title")
@@ -138,7 +138,7 @@ class UpdateListingIn(BaseModel):
         Field(ge=0, le=MAX_PRICE, max_digits=12, decimal_places=2),
     ] = None
     price_negotiable: bool = False
-    district: Annotated[str, Field(min_length=1, max_length=32)]
+    district: Annotated[str, Field(min_length=1, max_length=40)]
 
     @field_validator("title")
     @classmethod

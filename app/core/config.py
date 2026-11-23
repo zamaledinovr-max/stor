@@ -46,7 +46,7 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
-    app_name: str = "Барахолка устройств"
+    app_name: str = "AskVape.market"
     app_env: Literal["development", "test", "production"] = "development"
     app_debug: bool = False
     app_docs_enabled: bool = True

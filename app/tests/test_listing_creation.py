@@ -160,20 +160,50 @@ def test_price_with_three_decimals_is_rejected(client, auth_headers):
     assert response.status_code == 422
 
 
-def test_invalid_district_is_rejected(client, auth_headers):
+def test_any_meeting_place_is_accepted(client, auth_headers):
     response = client.post(
         "/api/listings",
         headers=auth_headers(1001),
         json={
             "kind": "sell",
-            "title": "Пылесос",
+            "title": "Pasito 3",
             "condition": "good",
-            "price_amount": "3000",
-            "district": "Бутово",
+            "price_amount": "1600",
+            "district": "  бутово ",
+        },
+    )
+    assert response.status_code == 201
+    assert response.json()["district"] == "Бутово"
+
+
+def test_too_long_meeting_place_is_rejected(client, auth_headers):
+    response = client.post(
+        "/api/listings",
+        headers=auth_headers(1001),
+        json={
+            "kind": "sell",
+            "title": "Pasito 3",
+            "condition": "good",
+            "price_amount": "1600",
+            "district": "я" * 41,
         },
     )
     assert response.status_code == 422
-    assert "район" in response.text.lower()
+
+
+def test_too_short_meeting_place_is_rejected(client, auth_headers):
+    response = client.post(
+        "/api/listings",
+        headers=auth_headers(1001),
+        json={
+            "kind": "sell",
+            "title": "Pasito 3",
+            "condition": "good",
+            "price_amount": "1600",
+            "district": "я",
+        },
+    )
+    assert response.status_code == 422
 
 
 def test_unknown_fields_are_rejected(client, auth_headers):

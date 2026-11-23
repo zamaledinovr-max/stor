@@ -394,7 +394,7 @@ export function createDetailView({
           el("dd", { text: listing.condition_label || "Не указано" }),
         ]),
         el("div", { class: "detail__row" }, [
-          el("dt", { text: "Район" }),
+          el("dt", { text: "Место встречи" }),
           el("dd", { text: listing.district }),
         ]),
         el("div", { class: "detail__row" }, [

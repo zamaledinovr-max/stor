@@ -32,7 +32,8 @@ export function createCreateView({
   const conditionChips = document.getElementById("condition-chips");
   const conditionTextField = document.getElementById("condition-text-field");
   const conditionTextInput = document.getElementById("field-condition-text");
-  const districtSelect = document.getElementById("field-district");
+  const districtInput = document.getElementById("field-district");
+  const districtOptions = document.getElementById("district-options");
   const titleInput = document.getElementById("field-title");
   const descriptionInput = document.getElementById("field-description");
   const priceInput = document.getElementById("field-price");
@@ -153,8 +154,15 @@ export function createCreateView({
         errors.push("price");
       }
     }
-    if (!state.values.district) {
-      setError("district", "Выберите район из списка.");
+    const district = state.values.district.trim();
+    if (!district) {
+      setError("district", "Укажите место встречи.");
+      errors.push("district");
+    } else if (district.length < 2) {
+      setError("district", "Место встречи слишком короткое.");
+      errors.push("district");
+    } else if (district.length > 40) {
+      setError("district", "Место встречи должно быть короче 40 символов.");
       errors.push("district");
     }
     return errors;
@@ -239,11 +247,14 @@ export function createCreateView({
     const required = el("span", { class: "req", text: "*" });
     titleLabel.appendChild(required);
     titleInput.placeholder = isSell
-      ? "Например, iPhone 12 128 ГБ"
-      : "Например, ноутбук для учёбы";
+      ? "Например, Pasito 3 в хорошем состоянии"
+      : "Например, Xros 6 mini, бюджет 1600";
+    descriptionInput.placeholder = isSell
+      ? "Например: покупал в марте, есть чек и две капсулы…"
+      : "Например: нужен Xros 6 mini, цвет чёрный, до 1600 ₽";
     descriptionHint.textContent = isSell
-      ? "Комплект, состояние, причина продажи."
-      : "Опишите, что ищете: модель, требования, сроки.";
+      ? "Состояние, что в комплекте, причина продажи."
+      : "Модель, цвет, бюджет, сроки.";
     priceLabel.textContent = isSell ? "Цена, ₽" : "Максимальный бюджет, ₽";
     if (isSell && !state.priceNegotiable) {
       priceLabel.appendChild(el("span", { class: "req", text: "*" }));
@@ -296,12 +307,11 @@ export function createCreateView({
   }
 
   function renderDistricts() {
-    clear(districtSelect);
-    districtSelect.appendChild(el("option", { value: "", text: "Выберите район" }));
+    clear(districtOptions);
     for (const district of meta().districts) {
-      districtSelect.appendChild(el("option", { value: district, text: district }));
+      districtOptions.appendChild(el("option", { value: district }));
     }
-    districtSelect.value = state.values.district;
+    districtInput.value = state.values.district;
   }
 
   function renderRules() {
@@ -413,7 +423,7 @@ export function createCreateView({
       ["Название", state.values.title.trim() || "—"],
       ["Состояние", conditionLabel],
       [state.kind === "buy" ? "Бюджет" : "Цена", priceValue],
-      ["Район", state.values.district || "—"],
+      ["Место встречи", state.values.district || "—"],
       ["Фотографии", String(state.files.length + state.existingPhotos.length)],
     ];
     for (const [label, value] of rows) {
@@ -710,7 +720,7 @@ export function createCreateView({
     noBudgetInput.checked = false;
     negotiableInput.checked = false;
     conditionTextInput.value = "";
-    districtSelect.value = "";
+    districtInput.value = "";
     photoInput.value = "";
     rulesCheckbox.checked = false;
     clearErrors();
@@ -794,8 +804,8 @@ export function createCreateView({
     priceInput.addEventListener("input", () => {
       state.values.price = priceInput.value;
     });
-    districtSelect.addEventListener("change", () => {
-      state.values.district = districtSelect.value;
+    districtInput.addEventListener("input", () => {
+      state.values.district = districtInput.value;
       updatePhotoSummary();
     });
     noBudgetInput.addEventListener("change", () => {

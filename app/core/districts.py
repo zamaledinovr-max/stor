@@ -1,10 +1,14 @@
-"""Fixed list of districts accepted by the catalog.
+"""Meeting place: free-form text with a list of suggestions.
 
-The list is deliberately hard-coded: users pick a district from a selector and
-the server re-validates the value against this list on every write.
+The tuple below is only a hint for the client (datalist). Users may type any
+meeting place; the server normalizes the value and checks its length instead of
+validating it against this list.
 """
 
 from __future__ import annotations
+
+DISTRICT_MIN_LENGTH = 2
+DISTRICT_MAX_LENGTH = 40
 
 DISTRICTS: tuple[str, ...] = (
     "Московский тракт",
@@ -23,21 +27,26 @@ DISTRICTS: tuple[str, ...] = (
     "Сити молл",
 )
 
-_CANONICAL_BY_CASEFOLD: dict[str, str] = {district.casefold(): district for district in DISTRICTS}
-
 
 def normalize_district(value: str) -> str:
-    """Return the canonical district spelling or raise `ValueError`.
+    """Normalize a free-form meeting place or raise `ValueError`.
 
-    Comparison is case-insensitive and ignores extra whitespace, while the
-    stored value is always one of `DISTRICTS`.
+    Extra whitespace is collapsed and the value is brought to the same shape as
+    the suggestions ("центр", "ЦЕНТР", " центр " → "Центр"), so the catalog
+    filter stays case-insensitive and does not create spelling duplicates.
     """
 
-    collapsed = " ".join(str(value).split())
-    canonical = _CANONICAL_BY_CASEFOLD.get(collapsed.casefold())
-    if canonical is None:
-        raise ValueError("Неизвестный район. Выберите район из списка.")
-    return canonical
+    printable = "".join(char for char in str(value) if char.isprintable())
+    collapsed = " ".join(printable.split())
+    if not collapsed:
+        raise ValueError("Укажите место встречи.")
+    if len(collapsed) < DISTRICT_MIN_LENGTH:
+        raise ValueError("Место встречи слишком короткое.")
+    if len(collapsed) > DISTRICT_MAX_LENGTH:
+        raise ValueError(
+            f"Место встречи должно быть короче {DISTRICT_MAX_LENGTH} символов."
+        )
+    return collapsed.lower().capitalize()
 
 
 def is_valid_district(value: str) -> bool:

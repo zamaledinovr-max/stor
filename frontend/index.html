@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#f4f6fa">
-  <title>Барахолка устройств</title>
+  <title>AskVape.market</title>
   <link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="/css/app.css">
@@ -16,8 +16,8 @@
       <div class="brand">
         <img class="brand__logo" src="/assets/logo.svg" alt="" width="38" height="38">
         <div class="brand__text">
-          <h1 id="app-name">Барахолка устройств</h1>
-          <p class="brand__sub">Техника рядом</p>
+          <h1 id="app-name">AskVape.market</h1>
+          <p class="brand__sub">ask.market</p>
         </div>
       </div>
       <button class="icon-btn" id="support-button" type="button" aria-label="Поддержка">
@@ -76,13 +76,13 @@
             <label class="field">
               <span class="field__label" id="title-label">Название устройства <span class="req">*</span></span>
               <input class="input" id="field-title" type="text" maxlength="120" autocomplete="off"
-                     placeholder="Например, iPhone 12 128 ГБ">
+                     placeholder="Например, Pasito 3 в хорошем состоянии">
               <span class="field__error" id="error-title" hidden></span>
             </label>
             <label class="field">
               <span class="field__label" id="description-label">Описание</span>
               <textarea class="input input--area" id="field-description" maxlength="1000" rows="4"
-                        placeholder="Комплект, особенности, причина продажи…"></textarea>
+                        placeholder="Например: покупал в марте, есть чек и две капсулы…"></textarea>
               <span class="field__hint" id="description-hint"></span>
               <span class="field__error" id="error-description" hidden></span>
             </label>
@@ -104,7 +104,7 @@
             <label class="field">
               <span class="field__label" id="price-label">Цена, ₽ <span class="req">*</span></span>
               <input class="input" id="field-price" type="text" inputmode="decimal" maxlength="14"
-                     placeholder="Например, 25000">
+                     placeholder="Например, 1600">
               <span class="field__error" id="error-price" hidden></span>
             </label>
             <label class="checkbox" id="price-negotiable-row" hidden>
@@ -116,10 +116,11 @@
               <span>Бюджет не указан</span>
             </label>
             <label class="field">
-              <span class="field__label">Район <span class="req">*</span></span>
-              <select class="input input--select" id="field-district" aria-label="Район">
-                <option value="">Выберите район</option>
-              </select>
+              <span class="field__label">Место встречи <span class="req">*</span></span>
+              <input class="input" id="field-district" type="text" maxlength="40"
+                     list="district-options" autocomplete="off"
+                     placeholder="Например, ТЦ Кристалл или Зарека">
+              <datalist id="district-options"></datalist>
               <span class="field__error" id="error-district" hidden></span>
             </label>
           </div>

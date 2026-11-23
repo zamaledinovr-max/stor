@@ -124,11 +124,20 @@ def test_pagination(client, create_listing, auth_headers):
     )
 
 
-def test_invalid_district_query_is_rejected(client, create_listing, auth_headers):
+def test_unknown_meeting_place_filter_returns_empty(
+    client, create_listing, auth_headers
+):
     _seed(create_listing, auth_headers)
     response = _catalog(client, auth_headers, district="Бутово")
-    assert response.status_code == 422
-    assert "район" in response.text.lower()
+    assert response.status_code == 200
+    assert response.json()["total"] == 0
+
+
+def test_meeting_place_filter_is_case_insensitive(client, create_listing, auth_headers):
+    _seed(create_listing, auth_headers)
+    payload = _catalog(client, auth_headers, district="  центр ").json()
+    assert payload["total"] == 2
+    assert {item["district"] for item in payload["items"]} == {"Центр"}
 
 
 def test_inverted_price_range_is_rejected(client, auth_headers):

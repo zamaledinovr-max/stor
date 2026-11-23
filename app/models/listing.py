@@ -20,7 +20,6 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.districts import DISTRICTS
 from app.core.enums import ListingCondition, ListingKind, ListingStatus, ModerationStatus
 from app.core.timeutils import utcnow
 from app.db.base import Base
@@ -28,8 +27,6 @@ from app.db.base import Base
 if TYPE_CHECKING:
     from app.models.photo import ListingPhoto
     from app.models.user import User
-
-_DISTRICT_SQL = ", ".join(f"'{district}'" for district in DISTRICTS)
 
 
 class Listing(Base):
@@ -50,7 +47,6 @@ class Listing(Base):
             "price_amount IS NULL OR price_amount > 0",
             name="ck_listings_price_positive",
         ),
-        CheckConstraint(f"district IN ({_DISTRICT_SQL})", name="ck_listings_district"),
         Index("ix_listings_catalog", "status", "kind", "created_at"),
         Index("ix_listings_district_status", "district", "status"),
         Index("ix_listings_price", "price_amount"),
@@ -74,7 +70,7 @@ class Listing(Base):
         Boolean, default=False, server_default=false(), nullable=False
     )
     currency: Mapped[str] = mapped_column(String(3), default="RUB", nullable=False)
-    district: Mapped[str] = mapped_column(String(32), nullable=False)
+    district: Mapped[str] = mapped_column(String(40), nullable=False)
     status: Mapped[str] = mapped_column(
         String(8), default=ListingStatus.ACTIVE.value, nullable=False
     )

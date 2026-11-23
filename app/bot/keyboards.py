@@ -4,55 +4,9 @@ from __future__ import annotations
 
 from html import escape
 
-from aiogram.types import (
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-    KeyboardButton,
-    ReplyKeyboardMarkup,
-    WebAppInfo,
-)
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from app.core.config import Settings
-
-
-def main_menu_keyboard(settings: Settings) -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [
-                KeyboardButton(
-                    text="🛍 Открыть каталог",
-                    web_app=WebAppInfo(url=settings.webapp_url),
-                )
-            ]
-        ],
-        resize_keyboard=True,
-    )
-
-
-def open_app_inline_keyboard(settings: Settings) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="🛍 Открыть каталог",
-                    web_app=WebAppInfo(url=settings.webapp_url),
-                )
-            ]
-        ]
-    )
-
-
-def listing_keyboard(button_text: str, button_url: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text=button_text,
-                    web_app=WebAppInfo(url=button_url),
-                )
-            ]
-        ]
-    )
 
 
 def broadcast_confirm_keyboard() -> InlineKeyboardMarkup:
@@ -76,8 +30,7 @@ def start_text(settings: Settings, first_name: str | None) -> str:
         "• <b>Купить</b> — поиск по названию, фильтры по цене, состоянию и району.\n"
         "• <b>Продать</b> — публикация объявления за пару шагов.\n"
         "• <b>Аккаунт</b> — ваши объявления и управление статусами.\n\n"
-        "Откройте приложение кнопкой ниже. Если кнопка не появилась, "
-        "напишите боту /start в личном чате."
+        "Откройте каталог кнопкой <b>«Каталог»</b> у поля ввода."
     )
 
 

@@ -92,7 +92,7 @@ def list_listings(
     settings: Settings = Depends(get_app_settings),
     q: Annotated[str | None, Query(max_length=100)] = None,
     kind: Annotated[ListingKind | None, Query()] = None,
-    district: Annotated[str | None, Query(max_length=32)] = None,
+    district: Annotated[str | None, Query(max_length=40)] = None,
     condition: Annotated[ListingCondition | None, Query()] = None,
     min_price: Annotated[Decimal | None, Query(ge=0, le=MAX_PRICE)] = None,
     max_price: Annotated[Decimal | None, Query(ge=0, le=MAX_PRICE)] = None,

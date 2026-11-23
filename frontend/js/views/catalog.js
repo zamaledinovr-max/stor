@@ -286,20 +286,28 @@ export function createCatalogView({ api, getMeta, openListing, openLink, notify 
       ),
     ]);
 
-    const districtSelect = el("select", { class: "input input--select", id: "filter-district" }, [
-      el("option", { value: "", text: "Любой район" }),
-      ...meta.districts.map((district) =>
-        el("option", {
-          value: district,
-          text: district,
-          selected: draft.district === district,
-        }),
-      ),
-    ]);
-    districtSelect.value = draft.district;
+    const districtInput = el("input", {
+      class: "input",
+      id: "filter-district",
+      type: "text",
+      maxlength: 40,
+      placeholder: "Любое место встречи",
+      value: draft.district,
+      attrs: { list: "filter-district-options", "aria-label": "Место встречи" },
+    });
+    const districtOptions = el(
+      "datalist",
+      { id: "filter-district-options" },
+      meta.districts.map((district) => el("option", { value: district })),
+    );
     const districtBlock = el("div", { class: "filter-block" }, [
-      el("label", { class: "filter-block__title", for: "filter-district", text: "Район" }),
-      districtSelect,
+      el("label", {
+        class: "filter-block__title",
+        for: "filter-district",
+        text: "Место встречи",
+      }),
+      districtInput,
+      districtOptions,
     ]);
 
     const conditionOptions = [{ value: "", label: "Любое" }, ...meta.conditions];
@@ -382,7 +390,7 @@ export function createCatalogView({ api, getMeta, openListing, openLink, notify 
     state.filters = {
       ...state.filters,
       sort: draft.sort,
-      district: document.getElementById("filter-district").value,
+      district: document.getElementById("filter-district").value.trim(),
       condition: draft.condition,
       minPrice: minPrice || "",
       maxPrice: maxPrice || "",

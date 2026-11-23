@@ -3,12 +3,12 @@
 import { ApiClient } from "./api.js";
 import { el } from "./dom.js";
 import {
-  getInitData,
   getListingIdFromUrl,
   getStartParam,
   haptic,
   initTelegram,
   openLink,
+  waitForInitData,
 } from "./telegram.js";
 import { createAccountView } from "./views/account.js";
 import { createCatalogView } from "./views/catalog.js";
@@ -153,27 +153,89 @@ function buildViews() {
   account.refresh();
 }
 
-function showFatal(error) {
-  const tabbar = document.querySelector(".tabbar");
-  if (tabbar) tabbar.hidden = true;
-  const isAuth = !getInitData() || error?.status === 401;
-  const message = isAuth
-    ? "Откройте приложение кнопкой «Открыть каталог» в Telegram-боте: данные входа передаются только внутри Telegram."
-    : error?.message || "Проверьте соединение и попробуйте ещё раз.";
-  const main = document.querySelector(".main");
-  main.replaceChildren(
-    el("div", { class: "state" }, [
-      el("div", { class: "state__icon", text: "🔒" }),
-      el("div", { class: "state__title", text: "Не удалось открыть каталог" }),
-      el("div", { class: "state__text", text: message }),
+let bootOverlay = null;
+let viewsReady = false;
+let sessionLoading = false;
+
+function hideBootOverlay() {
+  if (bootOverlay) {
+    bootOverlay.remove();
+    bootOverlay = null;
+  }
+}
+
+function showBootOverlay({ icon = "⏳", title, text, retry = false }) {
+  hideBootOverlay();
+  const card = el("div", { class: "state boot-overlay__card" }, [
+    el("div", { class: "state__icon", text: icon }),
+    el("div", { class: "state__title", text: title }),
+    el("div", { class: "state__text", text }),
+  ]);
+  if (retry) {
+    card.appendChild(
       el("button", {
         class: "button button--primary",
         type: "button",
         text: "Повторить",
-        onclick: () => window.location.reload(),
+        onclick: () => startSession(),
       }),
-    ]),
-  );
+    );
+  }
+  bootOverlay = el("div", { class: "boot-overlay" }, [card]);
+  document.body.appendChild(bootOverlay);
+}
+
+async function startSession() {
+  if (sessionLoading) return;
+  sessionLoading = true;
+  showBootOverlay({
+    title: "Подключаемся к Telegram",
+    text: "Получаем данные входа…",
+  });
+
+  const initData = await waitForInitData(3000);
+  if (!initData) {
+    sessionLoading = false;
+    showBootOverlay({
+      icon: "🔒",
+      title: "Не удалось открыть каталог",
+      text: "Откройте приложение кнопкой «Каталог» в боте. Если вы уже в Telegram — нажмите «Повторить».",
+      retry: true,
+    });
+    return;
+  }
+
+  try {
+    const [meta, me] = await Promise.all([api.getMeta(), api.getMe()]);
+    state.meta = meta;
+    state.me = me;
+  } catch (error) {
+    console.error("Bootstrap failed", error);
+    sessionLoading = false;
+    showBootOverlay({
+      icon: "🔒",
+      title: "Не удалось открыть каталог",
+      text:
+        error?.status === 401
+          ? "Данные входа не приняты. Закройте и откройте приложение заново."
+          : error?.message || "Проверьте соединение и попробуйте ещё раз.",
+      retry: true,
+    });
+    return;
+  }
+
+  hideBootOverlay();
+  sessionLoading = false;
+
+  if (!viewsReady) {
+    viewsReady = true;
+    buildViews();
+    const listingId = getListingIdFromUrl() || parseStartParam(getStartParam());
+    if (listingId) detail.open(listingId);
+    return;
+  }
+  catalog?.refresh();
+  account?.refresh();
 }
 
 function bindShell() {
@@ -185,29 +247,20 @@ function bindShell() {
   }
 }
 
-async function boot() {
+function boot() {
   initTelegram();
   bindShell();
 
-  if (!getInitData()) {
-    showFatal(null);
-    return;
-  }
+  // If the overlay is still on screen (no initData yet), retry as soon as the
+  // user returns to the app instead of asking for a full page reload.
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && bootOverlay && !sessionLoading) startSession();
+  });
+  window.addEventListener("focus", () => {
+    if (bootOverlay && !sessionLoading) startSession();
+  });
 
-  try {
-    const [meta, me] = await Promise.all([api.getMeta(), api.getMe()]);
-    state.meta = meta;
-    state.me = me;
-  } catch (error) {
-    console.error("Bootstrap failed", error);
-    showFatal(error);
-    return;
-  }
-
-  buildViews();
-
-  const listingId = getListingIdFromUrl() || parseStartParam(getStartParam());
-  if (listingId) detail.open(listingId);
+  startSession();
 }
 
 boot();

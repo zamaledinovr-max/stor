@@ -22,7 +22,7 @@ from aiogram.exceptions import (
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -30,7 +30,6 @@ from app.bot.keyboards import (
     broadcast_confirm_keyboard,
     group_text,
     help_text,
-    main_menu_keyboard,
     start_text,
 )
 from app.core.config import Settings
@@ -297,7 +296,9 @@ async def send_start(message: Message, settings: Settings) -> None:
     is_private = message.chat.type == "private"
     text = start_text(settings, message.from_user.first_name if message.from_user else None)
     if is_private:
-        await message.answer(text, reply_markup=main_menu_keyboard(settings))
+        # Drop the old persistent "Открыть каталог" keyboard and rely on the
+        # chat menu button ("Каталог", WebApp) instead.
+        await message.answer(text, reply_markup=ReplyKeyboardRemove())
         return
     # Telegram only allows Mini App buttons in private chats.
     await message.answer(group_text(settings))
